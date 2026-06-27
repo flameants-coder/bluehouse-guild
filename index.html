@@ -1313,11 +1313,47 @@ nKai	15000'></textarea>
     </div>
 
     <script>
-        // 資料存儲鍵
+        // API 設定
+        const API_BASE_URL = 'https://bluehouse-guild-api.onrender.com/api';
+
+        // 本地備份存儲鍵（離線時使用）
         const STORAGE_KEY = 'siphonEnergyRecords';
         const MEMBER_STORAGE_KEY = 'guildMembers';
         const PP_STORAGE_KEY = 'powerPointsData';
         const RECORDS_PER_PAGE = 50;
+
+        // API 請求輔助函數
+        async function apiRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                if (!response.ok) {
+                    throw new Error(`API 錯誤: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('API 請求失敗:', error);
+                throw error;
+            }
+        }
+
+        // 顯示載入中提示
+        function showLoading(show = true) {
+            let loader = document.getElementById('globalLoader');
+            if (!loader && show) {
+                loader = document.createElement('div');
+                loader.id = 'globalLoader';
+                loader.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;"><div style="background:#1a1a2e;padding:20px 40px;border-radius:10px;color:#00d4ff;">載入中...</div></div>';
+                document.body.appendChild(loader);
+            } else if (loader && !show) {
+                loader.remove();
+            }
+        }
 
         // 活動類型
         const ACTIVITIES = {
@@ -1470,7 +1506,7 @@ nKai	15000'></textarea>
             }
         }
 
-        function confirmImport() {
+        async function confirmImport() {
             if (pendingImportRecords.length === 0) {
                 previewImport();
                 if (pendingImportRecords.length === 0) return;
@@ -1501,6 +1537,10 @@ nKai	15000'></textarea>
             if (newRecords.length > 0) {
                 const allRecords = [...existingRecords, ...newRecords];
                 saveRecords(allRecords);
+
+                // 同步到 API
+                syncEnergyToAPI(newRecords);
+
                 showAlert(document.getElementById('importAlert'),
                     `成功匯入 ${newRecords.length} 筆記錄${duplicates > 0 ? `（略過 ${duplicates} 筆重複）` : ''}`, 'success');
                 renderAll();
@@ -1523,15 +1563,20 @@ nKai	15000'></textarea>
             const records = getRecords();
             const finalQuantity = action === '領出' ? -Math.abs(quantity) : Math.abs(quantity);
 
-            records.push({
+            const newRecord = {
                 id: Date.now(),
                 datetime,
                 memberName,
                 action,
                 quantity: finalQuantity
-            });
+            };
 
+            records.push(newRecord);
             saveRecords(records);
+
+            // 同步到 API
+            syncEnergyToAPI([newRecord]);
+
             renderAll();
         }
 
@@ -1902,7 +1947,7 @@ nKai	15000'></textarea>
             }
         }
 
-        function confirmMemberList() {
+        async function confirmMemberList() {
             if (pendingMemberList.length === 0) {
                 previewMemberList();
                 if (pendingMemberList.length === 0) return;
@@ -1922,6 +1967,10 @@ nKai	15000'></textarea>
             };
 
             saveMembers(data);
+
+            // 同步到 API
+            syncMembersToAPI(uniqueMembers);
+
             let msg = `成功更新 ${uniqueMembers.length} 位成員資料`;
             if (duplicateCount > 0) {
                 msg += `（已合併 ${duplicateCount} 筆重複 ID）`;
@@ -2195,7 +2244,7 @@ nKai	15000'></textarea>
             }
         }
 
-        function confirmPPImport() {
+        async function confirmPPImport() {
             const seasonId = getCurrentSeason();
             if (!seasonId) {
                 showAlert(document.getElementById('ppImportAlert'), '請先選擇賽季', 'error');
@@ -2236,6 +2285,9 @@ nKai	15000'></textarea>
 
             season.scores[currentActivity] = Array.from(scoreMap.values());
             savePPData(data);
+
+            // 同步到 API
+            syncPPScoresToAPI(seasonId, currentActivity, season.scores[currentActivity]);
 
             const activityName = ACTIVITIES[currentActivity];
             showAlert(document.getElementById('ppImportAlert'),
@@ -2645,6 +2697,9 @@ nKai	15000'></textarea>
                 }
                 data.seasons[seasonId].prizes = prizes;
                 saveLotteryData(data);
+
+                // 同步到 API
+                syncLotteryPrizesToAPI(seasonId, prizes);
             }
 
             renderPrizePreview();
@@ -2894,6 +2949,9 @@ nKai	15000'></textarea>
 
                 saveLotteryData(data);
 
+                // 同步到 API
+                syncLotteryDrawToAPI(seasonId, winner, prize, nextPrizeIndex);
+
                 // 顯示結果
                 document.getElementById('resultWinner').textContent = `🎉 恭喜 ${winner}`;
                 document.getElementById('resultPrize').textContent = `獲得 ${prize}`;
@@ -3105,6 +3163,176 @@ nKai	15000'></textarea>
             savePPData(data);
         }
 
+        // ==================== API 同步功能 ====================
+
+        // 從 API 同步成員數據
+        async function syncMembersFromAPI() {
+            try {
+                const members = await apiRequest('/members');
+                const data = {
+                    members: members.map(m => ({
+                        name: m.name,
+                        role: m.role,
+                        joinDate: m.joinDate
+                    })),
+                    updateTime: new Date().toISOString()
+                };
+                localStorage.setItem(MEMBER_STORAGE_KEY, JSON.stringify(data));
+                return true;
+            } catch (error) {
+                console.log('成員數據同步失敗，使用本地數據');
+                return false;
+            }
+        }
+
+        // 從 API 同步虹吸能量數據
+        async function syncEnergyFromAPI() {
+            try {
+                const result = await apiRequest('/energy?limit=1000');
+                const records = result.records.map(r => ({
+                    id: r._id,
+                    memberName: r.memberName,
+                    action: r.action,
+                    quantity: r.quantity,
+                    datetime: r.datetime,
+                    note: r.note || ''
+                }));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+                return true;
+            } catch (error) {
+                console.log('虹吸能量數據同步失敗，使用本地數據');
+                return false;
+            }
+        }
+
+        // 從 API 同步賽季數據
+        async function syncSeasonsFromAPI() {
+            try {
+                const seasons = await apiRequest('/seasons');
+                const ppData = {
+                    seasons: seasons.map(s => ({
+                        id: s._id,
+                        name: s.name,
+                        scores: s.scores || {
+                            hideoutCore: [],
+                            crystalSpider: [],
+                            hellGate: [],
+                            bottomlessAbyss: []
+                        }
+                    })),
+                    currentSeason: seasons.length > 0 ? seasons[0]._id : null
+                };
+                localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(ppData));
+
+                // 同步抽獎數據
+                const lotteryData = { seasons: {} };
+                seasons.forEach(s => {
+                    lotteryData.seasons[s._id] = {
+                        prizes: s.lottery?.prizes || [],
+                        history: s.lottery?.history || [],
+                        usedTickets: s.lottery?.usedTickets || {}
+                    };
+                });
+                localStorage.setItem(LOTTERY_STORAGE_KEY, JSON.stringify(lotteryData));
+                return true;
+            } catch (error) {
+                console.log('賽季數據同步失敗，使用本地數據');
+                return false;
+            }
+        }
+
+        // 同步成員到 API
+        async function syncMembersToAPI(members) {
+            try {
+                await apiRequest('/members/bulk', {
+                    method: 'POST',
+                    body: JSON.stringify({ members })
+                });
+                return true;
+            } catch (error) {
+                console.error('成員同步到 API 失敗:', error);
+                return false;
+            }
+        }
+
+        // 同步虹吸能量記錄到 API
+        async function syncEnergyToAPI(records) {
+            try {
+                await apiRequest('/energy/bulk', {
+                    method: 'POST',
+                    body: JSON.stringify({ records })
+                });
+                return true;
+            } catch (error) {
+                console.error('虹吸能量同步到 API 失敗:', error);
+                return false;
+            }
+        }
+
+        // 同步力量點分數到 API
+        async function syncPPScoresToAPI(seasonId, activity, scores) {
+            try {
+                await apiRequest(`/seasons/${seasonId}/scores/${activity}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ scores })
+                });
+                return true;
+            } catch (error) {
+                console.error('力量點同步到 API 失敗:', error);
+                return false;
+            }
+        }
+
+        // 同步抽獎獎品到 API
+        async function syncLotteryPrizesToAPI(seasonId, prizes) {
+            try {
+                await apiRequest(`/seasons/${seasonId}/lottery/prizes`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ prizes })
+                });
+                return true;
+            } catch (error) {
+                console.error('獎品同步到 API 失敗:', error);
+                return false;
+            }
+        }
+
+        // 同步抽獎結果到 API
+        async function syncLotteryDrawToAPI(seasonId, player, prize, prizeIndex) {
+            try {
+                await apiRequest(`/seasons/${seasonId}/lottery/draw`, {
+                    method: 'POST',
+                    body: JSON.stringify({ player, prize, prizeIndex })
+                });
+                return true;
+            } catch (error) {
+                console.error('抽獎結果同步到 API 失敗:', error);
+                return false;
+            }
+        }
+
+        // 初始化時從 API 同步所有數據
+        async function initSyncFromAPI() {
+            showLoading(true);
+            try {
+                await Promise.all([
+                    syncMembersFromAPI(),
+                    syncEnergyFromAPI(),
+                    syncSeasonsFromAPI()
+                ]);
+                console.log('API 數據同步完成');
+                // 重新渲染所有數據
+                renderAll();
+                renderMemberList();
+                renderSeasonSelect();
+                renderLotterySeasonSelect();
+            } catch (error) {
+                console.error('API 同步失敗:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
         // ==================== 渲染全部 ====================
 
         function renderAll() {
@@ -3206,6 +3434,12 @@ nKai	15000'></textarea>
         renderAll();
         renderSeasonSelect();
         renderLotterySeasonSelect();
+        renderMemberList();
+
+        // 頁面載入後從 API 同步數據
+        setTimeout(() => {
+            initSyncFromAPI();
+        }, 500);
     </script>
 </body>
 </html>
