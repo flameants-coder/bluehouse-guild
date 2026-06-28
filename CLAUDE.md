@@ -18,14 +18,20 @@ Blue House 公會管理系統是一個用於管理遊戲公會的網頁應用程
     ├── .env.example    # 環境變數範例
     ├── config/
     │   └── db.js       # MongoDB 連接設定
+    ├── middleware/
+    │   └── auth.js     # JWT 認證中間件
     ├── models/
     │   ├── Member.js       # 成員資料模型
     │   ├── EnergyRecord.js # 能量記錄模型
-    │   └── Season.js       # 賽季資料模型
-    └── routes/
-        ├── members.js  # 成員 API 路由
-        ├── energy.js   # 能量 API 路由
-        └── seasons.js  # 賽季 API 路由
+    │   ├── Season.js       # 賽季資料模型
+    │   └── User.js         # 使用者模型 (認證)
+    ├── routes/
+    │   ├── auth.js     # 認證 API 路由
+    │   ├── members.js  # 成員 API 路由
+    │   ├── energy.js   # 能量 API 路由
+    │   └── seasons.js  # 賽季 API 路由
+    └── scripts/
+        └── createAdmin.js  # 建立管理員帳號腳本
 ```
 
 ## 技術堆疊
@@ -38,6 +44,8 @@ Blue House 公會管理系統是一個用於管理遊戲公會的網頁應用程
 ### 後端
 - **Node.js + Express.js** - API 伺服器
 - **Mongoose** - MongoDB ODM
+- **JWT (jsonwebtoken)** - 身份認證
+- **bcryptjs** - 密碼加密
 - **CORS** - 跨域請求支援
 - **dotenv** - 環境變數管理
 
@@ -55,36 +63,44 @@ Blue House 公會管理系統是一個用於管理遊戲公會的網頁應用程
 https://bluehouse-guild-api.onrender.com/api
 ```
 
+### 認證 `/api/auth`
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| POST | `/login` | 登入取得 Token | 公開 |
+| GET | `/me` | 驗證 Token 取得用戶資訊 | 需認證 |
+| POST | `/change-password` | 修改密碼 | 需認證 |
+
 ### 成員管理 `/api/members`
-| 方法 | 端點 | 說明 |
-|------|------|------|
-| GET | `/` | 取得所有成員 |
-| POST | `/` | 新增成員 |
-| POST | `/bulk` | 批次更新成員 (覆蓋全部) |
-| PUT | `/:id` | 更新單一成員 |
-| DELETE | `/:id` | 刪除成員 |
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| GET | `/` | 取得所有成員 | 公開 |
+| POST | `/` | 新增成員 | 管理員 |
+| POST | `/bulk` | 批次更新成員 (覆蓋全部) | 管理員 |
+| PUT | `/:id` | 更新單一成員 | 管理員 |
+| DELETE | `/:id` | 刪除成員 | 管理員 |
 
 ### 能量記錄 `/api/energy`
-| 方法 | 端點 | 說明 |
-|------|------|------|
-| GET | `/` | 取得所有記錄 |
-| POST | `/` | 新增記錄 |
-| POST | `/bulk` | 批次新增記錄 |
-| DELETE | `/:id` | 刪除記錄 |
-| DELETE | `/` | 清除所有記錄 |
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| GET | `/` | 取得所有記錄 | 公開 |
+| GET | `/stats` | 取得統計數據 | 公開 |
+| POST | `/` | 新增記錄 | 管理員 |
+| POST | `/bulk` | 批次新增記錄 | 管理員 |
+| DELETE | `/:id` | 刪除記錄 | 管理員 |
+| DELETE | `/` | 清除所有記錄 | 管理員 |
 
 ### 賽季管理 `/api/seasons`
-| 方法 | 端點 | 說明 |
-|------|------|------|
-| GET | `/` | 取得所有賽季 |
-| GET | `/:id` | 取得單一賽季 |
-| POST | `/` | 新增賽季 |
-| DELETE | `/:id` | 刪除賽季 |
-| PUT | `/:id/scores/:activity` | 更新力量點分數 |
-| DELETE | `/:id/scores` | 清除力量點數據 |
-| PUT | `/:id/lottery/prizes` | 更新獎品列表 |
-| POST | `/:id/lottery/draw` | 記錄抽獎結果 |
-| DELETE | `/:id/lottery/history` | 清除抽獎記錄 |
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| GET | `/` | 取得所有賽季 | 公開 |
+| GET | `/:id` | 取得單一賽季 | 公開 |
+| POST | `/` | 新增賽季 | 管理員 |
+| DELETE | `/:id` | 刪除賽季 | 管理員 |
+| PUT | `/:id/scores/:activity` | 更新力量點分數 | 管理員 |
+| DELETE | `/:id/scores` | 清除力量點數據 | 管理員 |
+| PUT | `/:id/lottery/prizes` | 更新獎品列表 | 管理員 |
+| POST | `/:id/lottery/draw` | 記錄抽獎結果 | 管理員 |
+| DELETE | `/:id/lottery/history` | 清除抽獎記錄 | 管理員 |
 
 ## 資料模型
 
@@ -128,6 +144,17 @@ https://bluehouse-guild-api.onrender.com/api
 }
 ```
 
+### User (使用者)
+```javascript
+{
+  username: String,    // 使用者名稱 (唯一, 小寫)
+  password: String,    // 密碼 (bcrypt 加密)
+  role: String,        // 角色: 'admin' | 'guest'
+  lastLogin: Date,     // 最後登入時間
+  createdAt: Date
+}
+```
+
 ## 部署指南
 
 ### 後端部署 (Render)
@@ -142,6 +169,23 @@ https://bluehouse-guild-api.onrender.com/api
 5. 新增環境變數：
    - `MONGODB_URI`: MongoDB 連接字串
    - `PORT`: 3000
+   - `JWT_SECRET`: JWT 密鑰 (隨機長字串，至少 32 字元)
+
+### 建立管理員帳號
+
+部署後端後，需要建立管理員帳號才能使用管理功能：
+
+```bash
+# 透過 Render Shell 執行
+cd server
+node scripts/createAdmin.js admin your-secure-password
+```
+
+或在本地執行（需先設定 `.env`）：
+```bash
+cd server
+npm run create-admin admin your-secure-password
+```
 
 ### 前端部署 (GitHub Pages)
 
@@ -193,12 +237,31 @@ npm run dev
 ### 檢視資料庫
 前往 MongoDB Atlas → Browse Collections
 
+## 認證系統
+
+### 角色說明
+- **管理員 (admin)**: 可執行所有操作（匯入資料、刪除、修改等）
+- **訪客 (guest)**: 只能檢視資料（所有頁面可見，但無法執行寫入操作）
+
+### 前端認證流程
+1. 訪問網站時顯示登入彈窗
+2. 可選擇登入管理員帳號或使用訪客模式
+3. 登入後 Token 存在 localStorage，有效期 7 天
+4. Token 過期後需重新登入
+
+### 後端認證機制
+- 使用 JWT (JSON Web Token) 進行身份驗證
+- 密碼使用 bcrypt 加密儲存
+- 所有寫入 API (POST/PUT/DELETE) 需要管理員權限
+- 讀取 API (GET) 公開存取
+
 ## 重要設定檔位置
 
 | 檔案 | 用途 |
 |------|------|
-| `server/.env` | 環境變數 (含資料庫密碼，勿上傳) |
-| `index.html` 第 1519 行 | API_BASE_URL 設定 |
+| `server/.env` | 環境變數 (含資料庫密碼和 JWT 密鑰，勿上傳) |
+| `index.html` | 前端 SPA，含認證邏輯 |
+| `server/middleware/auth.js` | JWT 驗證中間件 |
 | `server/config/db.js` | 資料庫連接邏輯 |
 
 ## 故障排除

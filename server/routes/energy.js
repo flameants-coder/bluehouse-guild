@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const EnergyRecord = require('../models/EnergyRecord');
+const { adminOnly } = require('../middleware/auth');
 
 // 取得所有記錄（支援分頁和篩選）
 router.get('/', async (req, res) => {
@@ -72,8 +73,8 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// 新增記錄
-router.post('/', async (req, res) => {
+// 新增記錄 (需管理員權限)
+router.post('/', adminOnly, async (req, res) => {
     try {
         const record = new EnergyRecord(req.body);
         const savedRecord = await record.save();
@@ -83,8 +84,8 @@ router.post('/', async (req, res) => {
     }
 });
 
-// 批量新增記錄
-router.post('/bulk', async (req, res) => {
+// 批量新增記錄 (需管理員權限)
+router.post('/bulk', adminOnly, async (req, res) => {
     try {
         const { records } = req.body;
         const savedRecords = await EnergyRecord.insertMany(records);
@@ -97,8 +98,8 @@ router.post('/bulk', async (req, res) => {
     }
 });
 
-// 刪除記錄
-router.delete('/:id', async (req, res) => {
+// 刪除記錄 (需管理員權限)
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const record = await EnergyRecord.findByIdAndDelete(req.params.id);
         if (!record) {
@@ -110,8 +111,8 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// 清空所有記錄
-router.delete('/', async (req, res) => {
+// 清空所有記錄 (需管理員權限)
+router.delete('/', adminOnly, async (req, res) => {
     try {
         await EnergyRecord.deleteMany({});
         res.json({ message: '所有記錄已清空' });

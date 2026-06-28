@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Season = require('../models/Season');
+const { adminOnly } = require('../middleware/auth');
 
 // 取得所有賽季
 router.get('/', async (req, res) => {
@@ -25,8 +26,8 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// 新增賽季
-router.post('/', async (req, res) => {
+// 新增賽季 (需管理員權限)
+router.post('/', adminOnly, async (req, res) => {
     try {
         const season = new Season({
             name: req.body.name,
@@ -49,8 +50,8 @@ router.post('/', async (req, res) => {
     }
 });
 
-// 刪除賽季
-router.delete('/:id', async (req, res) => {
+// 刪除賽季 (需管理員權限)
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const season = await Season.findByIdAndDelete(req.params.id);
         if (!season) {
@@ -64,8 +65,8 @@ router.delete('/:id', async (req, res) => {
 
 // ==================== 力量點相關 ====================
 
-// 更新力量點分數
-router.put('/:id/scores/:activity', async (req, res) => {
+// 更新力量點分數 (需管理員權限)
+router.put('/:id/scores/:activity', adminOnly, async (req, res) => {
     try {
         const { id, activity } = req.params;
         const { scores } = req.body;
@@ -89,8 +90,8 @@ router.put('/:id/scores/:activity', async (req, res) => {
     }
 });
 
-// 清除賽季力量點數據
-router.delete('/:id/scores', async (req, res) => {
+// 清除賽季力量點數據 (需管理員權限)
+router.delete('/:id/scores', adminOnly, async (req, res) => {
     try {
         const season = await Season.findById(req.params.id);
         if (!season) {
@@ -113,8 +114,8 @@ router.delete('/:id/scores', async (req, res) => {
 
 // ==================== 抽獎相關 ====================
 
-// 更新獎品列表
-router.put('/:id/lottery/prizes', async (req, res) => {
+// 更新獎品列表 (需管理員權限)
+router.put('/:id/lottery/prizes', adminOnly, async (req, res) => {
     try {
         const season = await Season.findById(req.params.id);
         if (!season) {
@@ -130,8 +131,8 @@ router.put('/:id/lottery/prizes', async (req, res) => {
     }
 });
 
-// 記錄抽獎結果
-router.post('/:id/lottery/draw', async (req, res) => {
+// 記錄抽獎結果 (需管理員權限)
+router.post('/:id/lottery/draw', adminOnly, async (req, res) => {
     try {
         const season = await Season.findById(req.params.id);
         if (!season) {
@@ -165,8 +166,8 @@ router.post('/:id/lottery/draw', async (req, res) => {
     }
 });
 
-// 清除抽獎記錄
-router.delete('/:id/lottery/history', async (req, res) => {
+// 清除抽獎記錄 (需管理員權限)
+router.delete('/:id/lottery/history', adminOnly, async (req, res) => {
     try {
         const season = await Season.findById(req.params.id);
         if (!season) {

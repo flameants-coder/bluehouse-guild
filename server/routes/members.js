@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Member = require('../models/Member');
+const { adminOnly } = require('../middleware/auth');
 
 // 取得所有成員
 router.get('/', async (req, res) => {
@@ -12,8 +13,8 @@ router.get('/', async (req, res) => {
     }
 });
 
-// 新增成員
-router.post('/', async (req, res) => {
+// 新增成員 (需管理員權限)
+router.post('/', adminOnly, async (req, res) => {
     try {
         const member = new Member(req.body);
         const savedMember = await member.save();
@@ -23,8 +24,8 @@ router.post('/', async (req, res) => {
     }
 });
 
-// 批量新增/更新成員
-router.post('/bulk', async (req, res) => {
+// 批量新增/更新成員 (需管理員權限)
+router.post('/bulk', adminOnly, async (req, res) => {
     try {
         const { members } = req.body;
         const operations = members.map(m => ({
@@ -41,8 +42,8 @@ router.post('/bulk', async (req, res) => {
     }
 });
 
-// 刪除成員
-router.delete('/:id', async (req, res) => {
+// 刪除成員 (需管理員權限)
+router.delete('/:id', adminOnly, async (req, res) => {
     try {
         const member = await Member.findByIdAndDelete(req.params.id);
         if (!member) {
@@ -54,8 +55,8 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// 清空所有成員
-router.delete('/', async (req, res) => {
+// 清空所有成員 (需管理員權限)
+router.delete('/', adminOnly, async (req, res) => {
     try {
         await Member.deleteMany({});
         res.json({ message: '所有成員已清空' });

@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 
 // 路由
+const authRouter = require('./routes/auth');
 const membersRouter = require('./routes/members');
 const energyRouter = require('./routes/energy');
 const seasonsRouter = require('./routes/seasons');
@@ -18,6 +19,7 @@ app.use(cors());
 app.use(express.json());
 
 // API 路由
+app.use('/api/auth', authRouter);
 app.use('/api/members', membersRouter);
 app.use('/api/energy', energyRouter);
 app.use('/api/seasons', seasonsRouter);
@@ -28,6 +30,7 @@ app.get('/', (req, res) => {
         message: 'Blue House 公會管理系統 API',
         version: '1.0.0',
         endpoints: {
+            auth: '/api/auth',
             members: '/api/members',
             energy: '/api/energy',
             seasons: '/api/seasons'

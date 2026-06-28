@@ -769,10 +769,128 @@
             color: #666;
             font-size: 0.85em;
         }
+
+        /* 登入彈窗樣式 */
+        .login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .login-modal.hidden {
+            display: none;
+        }
+
+        .login-box {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 15px;
+            padding: 40px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
+        }
+
+        .login-box h2 {
+            color: #00d4ff;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.5em;
+        }
+
+        .login-box .form-group {
+            margin-bottom: 20px;
+        }
+
+        .login-box .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .login-box .btn {
+            flex: 1;
+        }
+
+        /* 使用者狀態列 */
+        .user-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 10px 0;
+        }
+
+        .user-bar .user-info {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .user-bar .user-info .role-admin {
+            color: #2ed573;
+            font-weight: bold;
+        }
+
+        .user-bar .user-info .role-guest {
+            color: #ffa502;
+        }
+
+        .user-bar .btn-logout {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        /* 管理員專屬元素 - 訪客時隱藏 */
+        .admin-only.guest-hidden {
+            display: none !important;
+        }
+
+        /* 管理員專屬表單 - 訪客時禁用 */
+        .admin-form.guest-disabled input,
+        .admin-form.guest-disabled textarea,
+        .admin-form.guest-disabled select,
+        .admin-form.guest-disabled button {
+            opacity: 0.5;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    <!-- 登入彈窗 -->
+    <div id="loginModal" class="login-modal">
+        <div class="login-box">
+            <h2>Blue House 公會管理系統</h2>
+            <div class="form-group">
+                <label for="loginUsername">帳號</label>
+                <input type="text" id="loginUsername" placeholder="請輸入帳號">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">密碼</label>
+                <input type="password" id="loginPassword" placeholder="請輸入密碼">
+            </div>
+            <div id="loginError" class="alert alert-error hidden"></div>
+            <div class="btn-group">
+                <button class="btn" onclick="doLogin()">登入</button>
+                <button class="btn btn-secondary" onclick="guestMode()">訪客模式</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
+        <!-- 使用者狀態列 -->
+        <div id="userBar" class="user-bar hidden">
+            <span id="userInfo" class="user-info"></span>
+            <button class="btn btn-secondary btn-logout" onclick="doLogout()">登出</button>
+        </div>
+
         <h1>Blue house公會管理系統</h1>
 
         <!-- 主導航 -->
@@ -805,7 +923,7 @@
                     <div id="importAlert" class="alert hidden"></div>
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
                         <button class="btn" onclick="previewImport()">預覽</button>
-                        <button class="btn btn-success" onclick="confirmImport()">確認匯入</button>
+                        <button class="btn btn-success admin-only" onclick="confirmImport()">確認匯入</button>
                         <button class="btn btn-secondary" onclick="clearImport()">清除</button>
                     </div>
                 </div>
@@ -834,7 +952,7 @@
                                 <input type="datetime-local" id="date" required>
                             </div>
                         </div>
-                        <button type="submit" class="btn">新增記錄</button>
+                        <button type="submit" class="btn admin-only">新增記錄</button>
                     </form>
                 </div>
             </div>
@@ -947,7 +1065,7 @@
                 <h2>資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
-                    <button class="btn btn-danger" onclick="clearAllData()">清除所有資料</button>
+                    <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
             </div>
         </div>
@@ -968,7 +1086,7 @@
                 <div id="memberListAlert" class="alert hidden"></div>
                 <div style="display: flex; gap: 10px; margin-top: 15px;">
                     <button class="btn" onclick="previewMemberList()">預覽</button>
-                    <button class="btn btn-success" onclick="confirmMemberList()">確認更新</button>
+                    <button class="btn btn-success admin-only" onclick="confirmMemberList()">確認更新</button>
                     <button class="btn btn-secondary" onclick="clearMemberList()">清除</button>
                 </div>
             </div>
@@ -1018,7 +1136,7 @@
                 <h2>成員資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportMemberData()">匯出成員資料</button>
-                    <button class="btn btn-danger" onclick="clearMemberData()">清除成員資料</button>
+                    <button class="btn btn-danger admin-only" onclick="clearMemberData()">清除成員資料</button>
                 </div>
             </div>
         </div>
@@ -1033,8 +1151,8 @@
                         <option value="">選擇賽季...</option>
                     </select>
                     <input type="text" id="newSeasonName" placeholder="新賽季名稱（例：第33賽季）" style="width: 200px;">
-                    <button class="btn" onclick="createSeason()">新增賽季</button>
-                    <button class="btn btn-danger" onclick="deleteSeason()">刪除賽季</button>
+                    <button class="btn admin-only" onclick="createSeason()">新增賽季</button>
+                    <button class="btn btn-danger admin-only" onclick="deleteSeason()">刪除賽季</button>
                 </div>
                 <div id="seasonAlert" class="alert hidden"></div>
             </div>
@@ -1059,7 +1177,7 @@ nKai	15000'></textarea>
                 <div id="ppImportAlert" class="alert hidden"></div>
                 <div style="display: flex; gap: 10px; margin-top: 15px;">
                     <button class="btn" onclick="previewPPImport()">預覽</button>
-                    <button class="btn btn-success" onclick="confirmPPImport()">確認匯入</button>
+                    <button class="btn btn-success admin-only" onclick="confirmPPImport()">確認匯入</button>
                     <button class="btn btn-secondary" onclick="clearPPImport()">清除</button>
                 </div>
             </div>
@@ -1169,7 +1287,7 @@ nKai	15000'></textarea>
                 <h2>力量點資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportPPData()">匯出力量點資料</button>
-                    <button class="btn btn-danger" onclick="clearSeasonPPData()">清除本賽季資料</button>
+                    <button class="btn btn-danger admin-only" onclick="clearSeasonPPData()">清除本賽季資料</button>
                 </div>
             </div>
         </div>
@@ -1231,8 +1349,8 @@ nKai	15000'></textarea>
 五獎：虹吸能量 x10"></textarea>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn" onclick="updatePrizes()">更新獎品</button>
-                    <button class="btn btn-secondary" onclick="loadDefaultPrizes()">載入預設</button>
+                    <button class="btn admin-only" onclick="updatePrizes()">更新獎品</button>
+                    <button class="btn btn-secondary admin-only" onclick="loadDefaultPrizes()">載入預設</button>
                 </div>
                 <div id="prizePreview" class="prize-list" style="margin-top: 15px;"></div>
             </div>
@@ -1255,7 +1373,7 @@ nKai	15000'></textarea>
                             <div class="wheel" id="wheel"></div>
                             <div class="wheel-center" onclick="spinWheel()">🎰</div>
                         </div>
-                        <button class="spin-btn" id="spinBtn" onclick="spinWheel()">抽出中獎者</button>
+                        <button class="spin-btn admin-only" id="spinBtn" onclick="spinWheel()">抽出中獎者</button>
                         <div class="prize-result" id="prizeResult">
                             <div class="winner" id="resultWinner"></div>
                             <div class="prize" id="resultPrize"></div>
@@ -1303,7 +1421,7 @@ nKai	15000'></textarea>
                 <div class="filters" style="margin-bottom: 15px;">
                     <input type="text" id="historySearch" placeholder="搜尋玩家或獎品..." style="flex: 1; max-width: 300px;">
                     <button class="btn btn-secondary" onclick="exportLotteryHistory()">匯出記錄</button>
-                    <button class="btn btn-danger" onclick="clearLotteryHistory()">清除記錄</button>
+                    <button class="btn btn-danger admin-only" onclick="clearLotteryHistory()">清除記錄</button>
                 </div>
                 <div class="lottery-history" id="lotteryHistoryList">
                     <div class="no-data" id="noHistoryData">尚無中獎記錄</div>
@@ -1316,6 +1434,179 @@ nKai	15000'></textarea>
         // API 設定
         const API_BASE_URL = 'https://bluehouse-guild-api.onrender.com/api';
 
+        // ==================== 認證系統 ====================
+        const AUTH_TOKEN_KEY = 'authToken';
+        const USER_INFO_KEY = 'userInfo';
+
+        // 取得儲存的 Token
+        function getAuthToken() {
+            return localStorage.getItem(AUTH_TOKEN_KEY);
+        }
+
+        // 取得使用者資訊
+        function getUserInfo() {
+            const data = localStorage.getItem(USER_INFO_KEY);
+            return data ? JSON.parse(data) : null;
+        }
+
+        // 檢查是否為管理員
+        function isAdmin() {
+            const user = getUserInfo();
+            return user && user.role === 'admin';
+        }
+
+        // 登入
+        async function doLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorDiv = document.getElementById('loginError');
+
+            if (!username || !password) {
+                errorDiv.textContent = '請輸入帳號和密碼';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || '登入失敗');
+                }
+
+                // 儲存 Token 和使用者資訊
+                localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+                localStorage.setItem(USER_INFO_KEY, JSON.stringify(data.user));
+
+                hideLoginModal();
+                updateUIForRole();
+
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 訪客模式
+        function guestMode() {
+            localStorage.setItem(USER_INFO_KEY, JSON.stringify({ role: 'guest' }));
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            hideLoginModal();
+            updateUIForRole();
+        }
+
+        // 登出
+        function doLogout() {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(USER_INFO_KEY);
+            showLoginModal();
+        }
+
+        // 顯示登入彈窗
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('userBar').classList.add('hidden');
+        }
+
+        // 隱藏登入彈窗
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+            document.getElementById('userBar').classList.remove('hidden');
+        }
+
+        // 根據角色更新 UI
+        function updateUIForRole() {
+            const user = getUserInfo();
+            const isAdminUser = user && user.role === 'admin';
+
+            // 更新使用者資訊顯示
+            const userInfoEl = document.getElementById('userInfo');
+            if (user) {
+                if (isAdminUser) {
+                    userInfoEl.innerHTML = '<span class="role-admin">管理員</span>';
+                } else {
+                    userInfoEl.innerHTML = '<span class="role-guest">訪客模式</span>';
+                }
+            }
+
+            // 顯示/隱藏管理功能
+            document.querySelectorAll('.admin-only').forEach(el => {
+                if (isAdminUser) {
+                    el.classList.remove('guest-hidden');
+                } else {
+                    el.classList.add('guest-hidden');
+                }
+            });
+
+            // 禁用/啟用管理表單
+            document.querySelectorAll('.admin-form').forEach(form => {
+                if (isAdminUser) {
+                    form.classList.remove('guest-disabled');
+                } else {
+                    form.classList.add('guest-disabled');
+                }
+            });
+        }
+
+        // 驗證 Token 有效性
+        async function validateToken() {
+            const token = getAuthToken();
+            if (!token) return false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem(USER_INFO_KEY, JSON.stringify(data.user));
+                    return true;
+                }
+
+                localStorage.removeItem(AUTH_TOKEN_KEY);
+                localStorage.removeItem(USER_INFO_KEY);
+                return false;
+            } catch {
+                return false;
+            }
+        }
+
+        // 初始化認證狀態
+        async function initAuth() {
+            const user = getUserInfo();
+
+            if (!user) {
+                showLoginModal();
+                return;
+            }
+
+            if (user.role === 'admin') {
+                const isValid = await validateToken();
+                if (!isValid) {
+                    showLoginModal();
+                    return;
+                }
+            }
+
+            hideLoginModal();
+            updateUIForRole();
+        }
+
+        // ==================== 結束認證系統 ====================
+
         // 本地備份存儲鍵（離線時使用）
         const STORAGE_KEY = 'siphonEnergyRecords';
         const MEMBER_STORAGE_KEY = 'guildMembers';
@@ -1325,15 +1616,41 @@ nKai	15000'></textarea>
         // API 請求輔助函數
         async function apiRequest(endpoint, options = {}) {
             try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+
+                // 如果有 Token，加入 Authorization header
+                const token = getAuthToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
+                    headers,
                     ...options
                 });
+
+                // 如果 Token 過期或無效，清除登入狀態
+                if (response.status === 401) {
+                    const data = await response.json();
+                    if (data.message && (data.message.includes('過期') || data.message.includes('無效'))) {
+                        localStorage.removeItem(AUTH_TOKEN_KEY);
+                        localStorage.removeItem(USER_INFO_KEY);
+                        showLoginModal();
+                        throw new Error('登入已過期，請重新登入');
+                    }
+                }
+
+                // 如果需要管理員權限但不是管理員
+                if (response.status === 403) {
+                    throw new Error('需要管理員權限');
+                }
+
                 if (!response.ok) {
-                    throw new Error(`API 錯誤: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `API 錯誤: ${response.status}`);
                 }
                 return await response.json();
             } catch (error) {
@@ -1640,7 +1957,7 @@ nKai	15000'></textarea>
                     <td><span class="badge ${record.quantity > 0 ? 'badge-deposit' : 'badge-withdraw'}">${record.action}</span></td>
                     <td class="${record.quantity > 0 ? 'quantity-positive' : 'quantity-negative'}">${record.quantity > 0 ? '+' : ''}${record.quantity}</td>
                     <td>
-                        <button class="btn btn-danger" onclick="deleteRecord(${record.id})">刪除</button>
+                        <button class="btn btn-danger admin-only ${isAdmin() ? '' : 'guest-hidden'}" onclick="deleteRecord(${record.id})">刪除</button>
                     </td>
                 </tr>
             `}).join('');
@@ -3435,6 +3752,9 @@ nKai	15000'></textarea>
         renderSeasonSelect();
         renderLotterySeasonSelect();
         renderMemberList();
+
+        // 初始化認證狀態
+        initAuth();
 
         // 頁面載入後從 API 同步數據
         setTimeout(() => {
