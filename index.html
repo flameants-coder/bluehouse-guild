@@ -1938,30 +1938,31 @@ nKai	15000'></textarea>
             pendingImportRecords = [];
         }
 
-        function addRecord(memberName, action, quantity, datetime) {
+        async function addRecord(memberName, action, quantity, datetime) {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
                 return;
             }
 
-            const records = getRecords();
             const finalQuantity = action === '領出' ? -Math.abs(quantity) : Math.abs(quantity);
+            const normalizedAction = action === '領出' ? '支出' : '收入';
 
             const newRecord = {
-                id: Date.now(),
                 datetime,
                 memberName,
-                action,
+                action: normalizedAction,
                 quantity: finalQuantity
             };
 
-            records.push(newRecord);
-            saveRecords(records);
-
-            // 同步到 API
-            syncEnergyToAPI([newRecord]);
-
-            renderAll();
+            try {
+                // 直接同步到 API，不先存本地
+                await syncEnergyToAPI([newRecord]);
+                // 重新從 API 同步以獲取正確的 MongoDB _id
+                await syncEnergyFromAPI();
+                renderAll();
+            } catch (error) {
+                alert('新增失敗：' + error.message);
+            }
         }
 
         async function deleteRecord(id) {
@@ -2047,7 +2048,7 @@ nKai	15000'></textarea>
                     <td><span class="badge ${record.quantity > 0 ? 'badge-deposit' : 'badge-withdraw'}">${record.action}</span></td>
                     <td class="${record.quantity > 0 ? 'quantity-positive' : 'quantity-negative'}">${record.quantity > 0 ? '+' : ''}${record.quantity}</td>
                     <td>
-                        <button class="btn btn-danger admin-only ${isAdmin() ? '' : 'guest-hidden'}" onclick="deleteRecord(${record.id})">刪除</button>
+                        <button class="btn btn-danger admin-only ${isAdmin() ? '' : 'guest-hidden'}" onclick="deleteRecord('${record.id}')">刪除</button>
                     </td>
                 </tr>
             `}).join('');
