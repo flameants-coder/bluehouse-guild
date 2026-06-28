@@ -2436,40 +2436,110 @@ nKai	15000'></textarea>
             }
         }
 
-        // 上傳本地資料到伺服器
+        // 上傳本地資料到伺服器（所有模組）
         async function uploadLocalData() {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
                 return;
             }
 
-            const records = getRecords();
-            if (records.length === 0) {
+            // 收集所有本地資料
+            const energyRecords = getRecords();
+            const memberData = getMembers();
+            const ppData = getPPData();
+            const lotteryData = getLotteryData();
+
+            const summary = [];
+            if (energyRecords.length > 0) summary.push(`虹吸能量：${energyRecords.length} 筆`);
+            if (memberData.members?.length > 0) summary.push(`成員名單：${memberData.members.length} 位`);
+            if (ppData.seasons?.length > 0) summary.push(`力量點賽季：${ppData.seasons.length} 個`);
+            if (Object.keys(lotteryData.seasons || {}).length > 0) summary.push(`抽獎資料：${Object.keys(lotteryData.seasons).length} 個賽季`);
+
+            if (summary.length === 0) {
                 alert('本地沒有資料可上傳');
                 return;
             }
 
-            if (!confirm(`確定要上傳 ${records.length} 筆本地記錄到伺服器嗎？\n\n這會將瀏覽器中的資料同步到資料庫。`)) return;
+            if (!confirm(`確定要上傳以下本地資料到伺服器嗎？\n\n${summary.join('\n')}\n\n這會將瀏覽器中的資料同步到資料庫。`)) return;
 
             showLoading(true);
+            const results = [];
+
             try {
-                // 準備上傳的資料（移除本地 id，讓 MongoDB 生成新的 _id）
-                const uploadRecords = records.map(r => ({
-                    memberName: r.memberName,
-                    action: r.action === '領出' ? '支出' : (r.action === '存入' ? '收入' : r.action),
-                    quantity: r.quantity,
-                    datetime: r.datetime,
-                    note: r.note || ''
-                }));
+                // 1. 上傳虹吸能量記錄
+                if (energyRecords.length > 0) {
+                    const uploadRecords = energyRecords.map(r => ({
+                        memberName: r.memberName,
+                        action: r.action === '領出' ? '支出' : (r.action === '存入' ? '收入' : r.action),
+                        quantity: r.quantity,
+                        datetime: r.datetime,
+                        note: r.note || ''
+                    }));
+                    await syncEnergyToAPI(uploadRecords);
+                    results.push(`✓ 虹吸能量：${energyRecords.length} 筆`);
+                }
 
-                await syncEnergyToAPI(uploadRecords);
-                // 重新從伺服器同步以獲取正確的 MongoDB _id
-                await syncEnergyFromAPI();
+                // 2. 上傳成員名單
+                if (memberData.members?.length > 0) {
+                    await syncMembersToAPI(memberData.members);
+                    results.push(`✓ 成員名單：${memberData.members.length} 位`);
+                }
 
-                alert(`成功上傳 ${records.length} 筆記錄到伺服器！`);
+                // 3. 上傳力量點分數（需要先確保賽季存在）
+                if (ppData.seasons?.length > 0) {
+                    for (const season of ppData.seasons) {
+                        // 檢查賽季是否存在，不存在則創建
+                        const existingSeasons = await apiRequest('/seasons');
+                        const seasonExists = existingSeasons.some(s => s._id === season.id || s.name === season.name);
+
+                        let seasonId = season.id;
+                        if (!seasonExists) {
+                            // 創建新賽季
+                            const newSeason = await apiRequest('/seasons', {
+                                method: 'POST',
+                                body: JSON.stringify({ name: season.name })
+                            });
+                            seasonId = newSeason._id;
+                        }
+
+                        // 上傳各活動分數
+                        for (const activity of ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss']) {
+                            if (season.scores?.[activity]?.length > 0) {
+                                await syncPPScoresToAPI(seasonId, activity, season.scores[activity]);
+                            }
+                        }
+                    }
+                    results.push(`✓ 力量點：${ppData.seasons.length} 個賽季`);
+                }
+
+                // 4. 上傳抽獎資料
+                if (Object.keys(lotteryData.seasons || {}).length > 0) {
+                    for (const [seasonId, seasonData] of Object.entries(lotteryData.seasons)) {
+                        if (seasonData.prizes?.length > 0) {
+                            await syncLotteryPrizesToAPI(seasonId, seasonData.prizes);
+                        }
+                        // 中獎記錄需要逐筆上傳
+                        if (seasonData.history?.length > 0) {
+                            for (const record of seasonData.history) {
+                                await syncLotteryDrawToAPI(seasonId, record.player, record.prize, record.prizeIndex);
+                            }
+                        }
+                    }
+                    results.push(`✓ 抽獎資料：${Object.keys(lotteryData.seasons).length} 個賽季`);
+                }
+
+                // 重新從伺服器同步以獲取正確的資料
+                await Promise.all([
+                    syncEnergyFromAPI(),
+                    syncMembersFromAPI(),
+                    syncSeasonsFromAPI()
+                ]);
+
+                alert(`上傳完成！\n\n${results.join('\n')}`);
                 renderAll();
+                renderMemberList();
             } catch (error) {
-                alert('上傳失敗：' + error.message);
+                alert(`上傳失敗：${error.message}\n\n已完成：\n${results.join('\n') || '無'}`);
             } finally {
                 showLoading(false);
             }
@@ -2600,20 +2670,24 @@ nKai	15000'></textarea>
                 updateTime: new Date().toISOString()
             };
 
-            saveMembers(data);
+            try {
+                // 先同步到 API
+                await syncMembersToAPI(uniqueMembers);
+                // 重新從 API 同步以確保資料一致
+                await syncMembersFromAPI();
 
-            // 同步到 API
-            syncMembersToAPI(uniqueMembers);
+                let msg = `成功更新 ${uniqueMembers.length} 位成員資料`;
+                if (duplicateCount > 0) {
+                    msg += `（已合併 ${duplicateCount} 筆重複 ID）`;
+                }
+                showAlert(document.getElementById('memberListAlert'), msg, 'success');
 
-            let msg = `成功更新 ${uniqueMembers.length} 位成員資料`;
-            if (duplicateCount > 0) {
-                msg += `（已合併 ${duplicateCount} 筆重複 ID）`;
+                pendingMemberList = [];
+                renderAll();
+                renderMemberList();
+            } catch (error) {
+                showAlert(document.getElementById('memberListAlert'), '同步失敗：' + error.message, 'error');
             }
-            showAlert(document.getElementById('memberListAlert'), msg, 'success');
-
-            pendingMemberList = [];
-            renderAll();
-            renderMemberList();
         }
 
         function clearMemberList() {
@@ -2956,21 +3030,26 @@ nKai	15000'></textarea>
             });
 
             season.scores[currentActivity] = Array.from(scoreMap.values());
-            savePPData(data);
 
-            // 同步到 API
-            syncPPScoresToAPI(seasonId, currentActivity, season.scores[currentActivity]);
+            try {
+                // 同步到 API
+                await syncPPScoresToAPI(seasonId, currentActivity, season.scores[currentActivity]);
+                // 重新從 API 同步
+                await syncSeasonsFromAPI();
 
-            const activityName = ACTIVITIES[currentActivity];
-            showAlert(document.getElementById('ppImportAlert'),
-                `「${activityName}」匯入完成：新增 ${newCount} 筆，更新 ${updateCount} 筆`, 'success');
+                const activityName = ACTIVITIES[currentActivity];
+                showAlert(document.getElementById('ppImportAlert'),
+                    `「${activityName}」匯入完成：新增 ${newCount} 筆，更新 ${updateCount} 筆`, 'success');
 
-            pendingPPRecords = [];
-            document.getElementById('ppImportData').value = '';
-            document.getElementById('ppImportPreview').classList.add('hidden');
+                pendingPPRecords = [];
+                document.getElementById('ppImportData').value = '';
+                document.getElementById('ppImportPreview').classList.add('hidden');
 
-            renderPPStats();
-            renderPPRanking();
+                renderPPStats();
+                renderPPRanking();
+            } catch (error) {
+                showAlert(document.getElementById('ppImportAlert'), '同步失敗：' + error.message, 'error');
+            }
         }
 
         function clearPPImport() {
@@ -3360,7 +3439,7 @@ nKai	15000'></textarea>
             }
         }
 
-        function updatePrizes() {
+        async function updatePrizes() {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
                 return;
@@ -3379,15 +3458,16 @@ nKai	15000'></textarea>
             // 儲存到該賽季
             const seasonId = document.getElementById('lotterySeasonSelect').value;
             if (seasonId) {
-                const data = getLotteryData();
-                if (!data.seasons[seasonId]) {
-                    data.seasons[seasonId] = { prizes: [], history: [], usedTickets: {} };
-                }
-                data.seasons[seasonId].prizes = prizes;
-                saveLotteryData(data);
+                try {
+                    // 同步到 API
+                    await syncLotteryPrizesToAPI(seasonId, prizes);
+                    // 重新同步
+                    await syncSeasonsFromAPI();
 
-                // 同步到 API
-                syncLotteryPrizesToAPI(seasonId, prizes);
+                    showAlert(document.getElementById('lotterySeasonAlert'), '獎品更新成功', 'success');
+                } catch (error) {
+                    showAlert(document.getElementById('lotterySeasonAlert'), '同步失敗：' + error.message, 'error');
+                }
             }
 
             renderPrizePreview();
@@ -3642,8 +3722,10 @@ nKai	15000'></textarea>
 
                 saveLotteryData(data);
 
-                // 同步到 API
-                syncLotteryDrawToAPI(seasonId, winner, prize, nextPrizeIndex);
+                // 同步到 API（非阻塞，但會提示錯誤）
+                syncLotteryDrawToAPI(seasonId, winner, prize, nextPrizeIndex)
+                    .then(() => syncSeasonsFromAPI())
+                    .catch(err => console.error('抽獎結果同步失敗:', err));
 
                 // 顯示結果
                 document.getElementById('resultWinner').textContent = `🎉 恭喜 ${winner}`;
