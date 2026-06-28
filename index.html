@@ -188,6 +188,10 @@
             background: linear-gradient(135deg, #ffa502 0%, #cc8400 100%);
         }
 
+        .btn-info {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+        }
+
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1067,10 +1071,12 @@
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
                     <button class="btn btn-warning admin-only" onclick="aggregateRecords()">彙整記錄</button>
+                    <button class="btn btn-info admin-only" onclick="fixDataConsistency()">修復數據</button>
                     <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
-                    彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）
+                    彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）<br>
+                    修復數據：修正 action 與 quantity 符號不一致的記錄
                 </p>
             </div>
         </div>
@@ -1623,49 +1629,84 @@ nKai	15000'></textarea>
         const PP_STORAGE_KEY = 'powerPointsData';
         const RECORDS_PER_PAGE = 50;
 
-        // API 請求輔助函數
+        // API 請求輔助函數（支援超時和重試）
         async function apiRequest(endpoint, options = {}) {
-            try {
-                const headers = {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
+            const maxRetries = options.retries ?? 2;
+            const timeout = options.timeout ?? 30000; // 預設 30 秒超時
 
-                // 如果有 Token，加入 Authorization header
-                const token = getAuthToken();
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                    headers,
-                    ...options
-                });
+                try {
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    };
 
-                // 如果 Token 過期或無效，清除登入狀態
-                if (response.status === 401) {
-                    const data = await response.json();
-                    if (data.message && (data.message.includes('過期') || data.message.includes('無效'))) {
-                        localStorage.removeItem(AUTH_TOKEN_KEY);
-                        localStorage.removeItem(USER_INFO_KEY);
-                        showLoginModal();
-                        throw new Error('登入已過期，請重新登入');
+                    // 如果有 Token，加入 Authorization header
+                    const token = getAuthToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
                     }
-                }
 
-                // 如果需要管理員權限但不是管理員
-                if (response.status === 403) {
-                    throw new Error('需要管理員權限');
-                }
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        headers,
+                        signal: controller.signal,
+                        ...options
+                    });
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `API 錯誤: ${response.status}`);
+                    clearTimeout(timeoutId);
+
+                    // 如果 Token 過期或無效，清除登入狀態
+                    if (response.status === 401) {
+                        const data = await response.json();
+                        if (data.message && (data.message.includes('過期') || data.message.includes('無效'))) {
+                            localStorage.removeItem(AUTH_TOKEN_KEY);
+                            localStorage.removeItem(USER_INFO_KEY);
+                            showLoginModal();
+                            throw new Error('登入已過期，請重新登入');
+                        }
+                    }
+
+                    // 如果需要管理員權限但不是管理員
+                    if (response.status === 403) {
+                        throw new Error('需要管理員權限');
+                    }
+
+                    // 速率限制 - 不重試
+                    if (response.status === 429) {
+                        throw new Error('請求過於頻繁，請稍後再試');
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || `API 錯誤: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    clearTimeout(timeoutId);
+
+                    // 判斷是否為可重試的錯誤
+                    const isRetryable = error.name === 'AbortError' ||
+                        error.message.includes('Failed to fetch') ||
+                        error.message.includes('NetworkError');
+
+                    if (isRetryable && attempt < maxRetries) {
+                        // 指數退避等待：1秒、2秒...
+                        const delay = Math.pow(2, attempt) * 1000;
+                        console.log(`API 請求失敗，${delay/1000} 秒後重試 (${attempt + 1}/${maxRetries})...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+
+                    if (error.name === 'AbortError') {
+                        throw new Error('請求超時，請檢查網路連線');
+                    }
+
+                    console.error('API 請求失敗:', error);
+                    throw error;
                 }
-                return await response.json();
-            } catch (error) {
-                console.error('API 請求失敗:', error);
-                throw error;
             }
         }
 
@@ -1768,13 +1809,19 @@ nKai	15000'></textarea>
 
                 if (match) {
                     const [, datetime, player, action, quantityStr] = match;
-                    const quantity = parseInt(quantityStr);
+                    const rawQuantity = parseInt(quantityStr);
 
-                    if (!isNaN(quantity)) {
+                    if (!isNaN(rawQuantity)) {
+                        // 根據 action 強制符號一致性
+                        // 領出/支出 -> 負數，存入/收入 -> 正數
+                        const isWithdraw = action.includes('領出') || action.includes('支出');
+                        const quantity = isWithdraw ? -Math.abs(rawQuantity) : Math.abs(rawQuantity);
+                        const normalizedAction = isWithdraw ? '支出' : '收入';
+
                         records.push({
                             datetime,
                             memberName: player,
-                            action,
+                            action: normalizedAction,
                             quantity
                         });
                     } else {
@@ -2357,6 +2404,34 @@ nKai	15000'></textarea>
                 renderAll();
             } catch (error) {
                 alert('彙整失敗：' + error.message);
+            }
+        }
+
+        // 修復數據一致性
+        async function fixDataConsistency() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
+            if (!confirm('確定要修復數據嗎？\n\n此操作會修正 action 與 quantity 符號不一致的記錄。')) return;
+
+            try {
+                const result = await apiRequest('/energy/fix-data', {
+                    method: 'POST'
+                });
+
+                if (result.fixedCount === 0) {
+                    alert('所有記錄符號一致，無需修復');
+                } else {
+                    alert(`修復完成！\n\n${result.details}`);
+                    // 重新同步資料
+                    await syncEnergyFromAPI();
+                    resetTableHeader();
+                    renderAll();
+                }
+            } catch (error) {
+                alert('修復失敗：' + error.message);
             }
         }
 

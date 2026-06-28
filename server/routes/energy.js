@@ -2,33 +2,42 @@ const express = require('express');
 const router = express.Router();
 const EnergyRecord = require('../models/EnergyRecord');
 const { adminOnly } = require('../middleware/auth');
+const { escapeRegex, sanitizePagination } = require('../utils/helpers');
 
 // 取得所有記錄（支援分頁和篩選）
 router.get('/', async (req, res) => {
     try {
-        const { page = 1, limit = 50, member, action, startDate, endDate } = req.query;
+        const { member, action, startDate, endDate } = req.query;
+        const { page, limit, skip } = sanitizePagination(req.query);
 
         const query = {};
-        if (member) query.memberName = new RegExp(member, 'i');
-        if (action) query.action = action;
+        // 使用轉義後的正則表達式防止 ReDoS 攻擊
+        if (member) {
+            query.memberName = new RegExp(escapeRegex(member), 'i');
+        }
+        if (action && ['收入', '支出'].includes(action)) {
+            query.action = action;
+        }
         if (startDate || endDate) {
             query.datetime = {};
             if (startDate) query.datetime.$gte = new Date(startDate);
             if (endDate) query.datetime.$lte = new Date(endDate);
         }
 
-        const records = await EnergyRecord.find(query)
-            .sort({ datetime: -1 })
-            .skip((page - 1) * limit)
-            .limit(parseInt(limit));
-
-        const total = await EnergyRecord.countDocuments(query);
+        const [records, total] = await Promise.all([
+            EnergyRecord.find(query)
+                .sort({ datetime: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            EnergyRecord.countDocuments(query)
+        ]);
 
         res.json({
             records,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page,
+                limit,
                 total,
                 pages: Math.ceil(total / limit)
             }
@@ -121,6 +130,46 @@ router.delete('/', adminOnly, async (req, res) => {
     }
 });
 
+// 修復數據 - 確保 action 與 quantity 符號一致 (需管理員權限)
+router.post('/fix-data', adminOnly, async (req, res) => {
+    try {
+        // 找出 action 與 quantity 符號不一致的記錄
+        const inconsistentRecords = await EnergyRecord.find({
+            $or: [
+                { action: '收入', quantity: { $lt: 0 } },
+                { action: '支出', quantity: { $gt: 0 } }
+            ]
+        });
+
+        if (inconsistentRecords.length === 0) {
+            return res.json({
+                message: '所有記錄符號一致，無需修復',
+                fixedCount: 0
+            });
+        }
+
+        // 修復每筆記錄
+        let fixedCount = 0;
+        for (const record of inconsistentRecords) {
+            if (record.action === '收入' && record.quantity < 0) {
+                record.quantity = Math.abs(record.quantity);
+            } else if (record.action === '支出' && record.quantity > 0) {
+                record.quantity = -Math.abs(record.quantity);
+            }
+            await record.save();
+            fixedCount++;
+        }
+
+        res.json({
+            message: `數據修復完成`,
+            fixedCount,
+            details: `已修正 ${fixedCount} 筆記錄的符號一致性`
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // 彙整記錄 - 依遊戲ID合併舊記錄，保留最新5000筆 (需管理員權限)
 router.post('/aggregate', adminOnly, async (req, res) => {
     try {
@@ -163,14 +212,15 @@ router.post('/aggregate', adminOnly, async (req, res) => {
                 aggregated[name] = {
                     memberName: name,
                     totalIncome: 0,
-                    totalExpense: 0,
+                    totalExpense: 0,  // 存儲為正數
                     recordCount: 0
                 };
             }
             if (record.quantity > 0) {
                 aggregated[name].totalIncome += record.quantity;
             } else {
-                aggregated[name].totalExpense += record.quantity;
+                // 將負數轉為正數累加，避免雙重負號問題
+                aggregated[name].totalExpense += Math.abs(record.quantity);
             }
             aggregated[name].recordCount++;
         });
@@ -193,12 +243,12 @@ router.post('/aggregate', adminOnly, async (req, res) => {
                     note: `彙整記錄 (原 ${member.recordCount} 筆)`
                 });
             }
-            // 如果有支出，建立一筆支出彙整記錄
-            if (member.totalExpense < 0) {
+            // 如果有支出，建立一筆支出彙整記錄（存儲為負數以保持一致性）
+            if (member.totalExpense > 0) {
                 newRecords.push({
                     memberName: member.memberName,
                     action: '支出',
-                    quantity: member.totalExpense,
+                    quantity: -member.totalExpense,  // 轉為負數存儲
                     datetime: now,
                     note: `彙整記錄 (原 ${member.recordCount} 筆)`
                 });
