@@ -121,43 +121,72 @@ router.delete('/', adminOnly, async (req, res) => {
     }
 });
 
-// 彙整記錄 - 依遊戲ID合併所有記錄 (需管理員權限)
+// 彙整記錄 - 依遊戲ID合併舊記錄，保留最新5000筆 (需管理員權限)
 router.post('/aggregate', adminOnly, async (req, res) => {
     try {
-        // 先統計每個成員的收入和支出總量
-        const aggregation = await EnergyRecord.aggregate([
-            {
-                $group: {
-                    _id: '$memberName',
-                    totalIncome: {
-                        $sum: { $cond: [{ $eq: ['$action', '收入'] }, '$quantity', 0] }
-                    },
-                    totalExpense: {
-                        $sum: { $cond: [{ $eq: ['$action', '支出'] }, '$quantity', 0] }
-                    },
-                    recordCount: { $sum: 1 }
-                }
-            }
-        ]);
-
-        if (aggregation.length === 0) {
-            return res.json({ message: '沒有記錄可彙整', aggregatedCount: 0 });
-        }
-
+        const KEEP_RECENT = 5000; // 保留最新的記錄數量
         const originalCount = await EnergyRecord.countDocuments();
 
-        // 刪除所有舊記錄
-        await EnergyRecord.deleteMany({});
+        if (originalCount <= KEEP_RECENT) {
+            return res.json({
+                message: `記錄數量 (${originalCount}) 未超過 ${KEEP_RECENT} 筆，無需彙整`,
+                originalCount,
+                aggregatedCount: 0
+            });
+        }
+
+        // 取得最新的 5000 筆記錄的 ID（這些要保留）
+        const recentRecords = await EnergyRecord.find()
+            .sort({ datetime: -1 })
+            .limit(KEEP_RECENT)
+            .select('_id');
+        const recentIds = recentRecords.map(r => r._id);
+
+        // 取得要彙整的舊記錄（不在最新 5000 筆中的）
+        const oldRecords = await EnergyRecord.find({
+            _id: { $nin: recentIds }
+        });
+
+        if (oldRecords.length === 0) {
+            return res.json({
+                message: '沒有舊記錄可彙整',
+                originalCount,
+                aggregatedCount: 0
+            });
+        }
+
+        // 彙整舊記錄：依遊戲ID統計
+        const aggregated = {};
+        oldRecords.forEach(record => {
+            const name = record.memberName;
+            if (!aggregated[name]) {
+                aggregated[name] = {
+                    memberName: name,
+                    totalIncome: 0,
+                    totalExpense: 0,
+                    recordCount: 0
+                };
+            }
+            if (record.quantity > 0) {
+                aggregated[name].totalIncome += record.quantity;
+            } else {
+                aggregated[name].totalExpense += record.quantity;
+            }
+            aggregated[name].recordCount++;
+        });
+
+        // 刪除舊記錄
+        await EnergyRecord.deleteMany({ _id: { $nin: recentIds } });
 
         // 建立彙整後的記錄
         const now = new Date();
         const newRecords = [];
 
-        aggregation.forEach(member => {
+        Object.values(aggregated).forEach(member => {
             // 如果有收入，建立一筆收入彙整記錄
             if (member.totalIncome > 0) {
                 newRecords.push({
-                    memberName: member._id,
+                    memberName: member.memberName,
                     action: '收入',
                     quantity: member.totalIncome,
                     datetime: now,
@@ -167,7 +196,7 @@ router.post('/aggregate', adminOnly, async (req, res) => {
             // 如果有支出，建立一筆支出彙整記錄
             if (member.totalExpense < 0) {
                 newRecords.push({
-                    memberName: member._id,
+                    memberName: member.memberName,
                     action: '支出',
                     quantity: member.totalExpense,
                     datetime: now,
@@ -181,12 +210,16 @@ router.post('/aggregate', adminOnly, async (req, res) => {
             await EnergyRecord.insertMany(newRecords);
         }
 
+        const finalCount = await EnergyRecord.countDocuments();
+
         res.json({
             message: '記錄彙整完成',
             originalCount,
-            aggregatedCount: newRecords.length,
-            memberCount: aggregation.length,
-            savedRecords: originalCount - newRecords.length
+            keptRecent: KEEP_RECENT,
+            oldRecordsAggregated: oldRecords.length,
+            newAggregatedRecords: newRecords.length,
+            finalCount,
+            savedRecords: originalCount - finalCount
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
