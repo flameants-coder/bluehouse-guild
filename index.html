@@ -935,7 +935,7 @@
 
                 <!-- 手動新增 -->
                 <div class="tab-content" id="tab-manual">
-                    <form id="recordForm">
+                    <form id="recordForm" class="admin-form">
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="memberName">成員名稱</label>
@@ -4011,6 +4011,13 @@ nKai	15000'></textarea>
         // 表單提交
         document.getElementById('recordForm').addEventListener('submit', function(e) {
             e.preventDefault();
+
+            // 權限檢查
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const memberName = document.getElementById('memberName').value.trim();
             const action = document.getElementById('action').value;
             const quantity = parseInt(document.getElementById('quantity').value);
