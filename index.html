@@ -1070,15 +1070,16 @@
                 <h2>資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
-                    <button class="btn" onclick="forceSync()">強制同步</button>
+                    <button class="btn" onclick="forceSync()">從伺服器同步</button>
+                    <button class="btn btn-success admin-only" onclick="uploadLocalData()">上傳本地資料</button>
                     <button class="btn btn-warning admin-only" onclick="aggregateRecords()">彙整記錄</button>
                     <button class="btn btn-info admin-only" onclick="fixDataConsistency()">修復數據</button>
                     <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
-                    強制同步：從伺服器重新載入所有資料（修復刪除問題）<br>
-                    彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）<br>
-                    修復數據：修正 action 與 quantity 符號不一致的記錄
+                    從伺服器同步：從伺服器重新載入所有資料<br>
+                    上傳本地資料：把瀏覽器中的記錄上傳到伺服器（首次使用或資料遺失時）<br>
+                    彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）
                 </p>
             </div>
         </div>
@@ -2430,6 +2431,45 @@ nKai	15000'></textarea>
                 renderMemberList();
             } catch (error) {
                 alert('同步失敗：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 上傳本地資料到伺服器
+        async function uploadLocalData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
+            const records = getRecords();
+            if (records.length === 0) {
+                alert('本地沒有資料可上傳');
+                return;
+            }
+
+            if (!confirm(`確定要上傳 ${records.length} 筆本地記錄到伺服器嗎？\n\n這會將瀏覽器中的資料同步到資料庫。`)) return;
+
+            showLoading(true);
+            try {
+                // 準備上傳的資料（移除本地 id，讓 MongoDB 生成新的 _id）
+                const uploadRecords = records.map(r => ({
+                    memberName: r.memberName,
+                    action: r.action === '領出' ? '支出' : (r.action === '存入' ? '收入' : r.action),
+                    quantity: r.quantity,
+                    datetime: r.datetime,
+                    note: r.note || ''
+                }));
+
+                await syncEnergyToAPI(uploadRecords);
+                // 重新從伺服器同步以獲取正確的 MongoDB _id
+                await syncEnergyFromAPI();
+
+                alert(`成功上傳 ${records.length} 筆記錄到伺服器！`);
+                renderAll();
+            } catch (error) {
+                alert('上傳失敗：' + error.message);
             } finally {
                 showLoading(false);
             }
