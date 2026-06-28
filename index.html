@@ -1149,8 +1149,12 @@
                 <h2>成員資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportMemberData()">匯出成員資料</button>
+                    <button class="btn btn-success admin-only" onclick="uploadMemberData()">上傳成員名單</button>
                     <button class="btn btn-danger admin-only" onclick="clearMemberData()">清除成員資料</button>
                 </div>
+                <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    上傳成員名單：將本地成員資料上傳到資料庫
+                </p>
             </div>
         </div>
 
@@ -2798,6 +2802,30 @@ nKai	15000'></textarea>
             a.download = `公會成員名單_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        async function uploadMemberData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
+            const memberData = getMembers();
+            if (!memberData.members || memberData.members.length === 0) {
+                alert('本地沒有成員資料可上傳');
+                return;
+            }
+
+            if (!confirm(`確定要上傳 ${memberData.members.length} 位成員資料到資料庫嗎？`)) return;
+
+            try {
+                await syncMembersToAPI(memberData.members);
+                await syncMembersFromAPI();
+                alert(`成功上傳 ${memberData.members.length} 位成員資料`);
+                renderMemberList();
+            } catch (error) {
+                alert('上傳失敗：' + error.message);
+            }
         }
 
         async function clearMemberData() {
