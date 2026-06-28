@@ -1148,12 +1148,13 @@
             <div class="card">
                 <h2>成員資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="syncMembersOnly()">從伺服器同步</button>
                     <button class="btn btn-secondary" onclick="exportMemberData()">匯出成員資料</button>
                     <button class="btn btn-success admin-only" onclick="uploadMemberData()">上傳成員名單</button>
                     <button class="btn btn-danger admin-only" onclick="clearMemberData()">清除成員資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
-                    上傳成員名單：將本地成員資料上傳到資料庫
+                    從伺服器同步：從資料庫載入成員資料（覆蓋本地）
                 </p>
             </div>
         </div>
@@ -1303,12 +1304,13 @@ nKai	15000'></textarea>
             <div class="card" id="ppDataManageCard" style="display: none;">
                 <h2>力量點資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="syncSeasonsOnly()">從伺服器同步</button>
                     <button class="btn btn-secondary" onclick="exportPPData()">匯出力量點資料</button>
                     <button class="btn btn-success admin-only" onclick="uploadSeasonPPData()">上傳本賽季資料</button>
                     <button class="btn btn-danger admin-only" onclick="clearSeasonPPData()">清除本賽季資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
-                    上傳本賽季資料：將本地的力量點資料上傳到資料庫
+                    從伺服器同步：從資料庫載入力量點資料（覆蓋本地）
                 </p>
             </div>
         </div>
@@ -2833,6 +2835,20 @@ nKai	15000'></textarea>
             }
         }
 
+        async function syncMembersOnly() {
+            if (!confirm('確定要從伺服器同步成員資料嗎？\n\n⚠️ 本地成員資料將被覆蓋')) return;
+
+            try {
+                localStorage.removeItem(MEMBER_STORAGE_KEY);
+                await syncMembersFromAPI();
+                alert('成員資料同步完成');
+                renderMemberList();
+                renderAll();
+            } catch (error) {
+                alert('同步失敗：' + error.message);
+            }
+        }
+
         async function clearMemberData() {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
@@ -3347,6 +3363,21 @@ nKai	15000'></textarea>
             a.download = `力量點資料_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        async function syncSeasonsOnly() {
+            if (!confirm('確定要從伺服器同步力量點資料嗎？\n\n⚠️ 本地力量點資料將被覆蓋')) return;
+
+            try {
+                localStorage.removeItem(PP_STORAGE_KEY);
+                localStorage.removeItem(LOTTERY_STORAGE_KEY);
+                await syncSeasonsFromAPI();
+                alert('力量點資料同步完成');
+                renderSeasonSelect();
+                renderLotterySeasonSelect();
+            } catch (error) {
+                alert('同步失敗：' + error.message);
+            }
         }
 
         async function uploadSeasonPPData() {
