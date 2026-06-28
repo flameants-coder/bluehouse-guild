@@ -1070,11 +1070,13 @@
                 <h2>資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
+                    <button class="btn" onclick="forceSync()">強制同步</button>
                     <button class="btn btn-warning admin-only" onclick="aggregateRecords()">彙整記錄</button>
                     <button class="btn btn-info admin-only" onclick="fixDataConsistency()">修復數據</button>
                     <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    強制同步：從伺服器重新載入所有資料（修復刪除問題）<br>
                     彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）<br>
                     修復數據：修正 action 與 quantity 符號不一致的記錄
                 </p>
@@ -1900,8 +1902,8 @@ nKai	15000'></textarea>
             pendingImportRecords.forEach(record => {
                 const key = `${record.datetime}_${record.memberName}_${record.quantity}`;
                 if (!existingKeys.has(key)) {
+                    // 不生成本地 id，讓 MongoDB 生成 _id
                     newRecords.push({
-                        id: Date.now() + Math.random(),
                         datetime: record.datetime,
                         memberName: record.memberName,
                         action: record.action,
@@ -1914,15 +1916,19 @@ nKai	15000'></textarea>
             });
 
             if (newRecords.length > 0) {
-                const allRecords = [...existingRecords, ...newRecords];
-                saveRecords(allRecords);
+                try {
+                    // 同步到 API
+                    await syncEnergyToAPI(newRecords);
+                    // 重新從 API 同步以獲取正確的 MongoDB _id
+                    await syncEnergyFromAPI();
 
-                // 同步到 API
-                syncEnergyToAPI(newRecords);
-
-                showAlert(document.getElementById('importAlert'),
-                    `成功匯入 ${newRecords.length} 筆記錄${duplicates > 0 ? `（略過 ${duplicates} 筆重複）` : ''}`, 'success');
-                renderAll();
+                    showAlert(document.getElementById('importAlert'),
+                        `成功匯入 ${newRecords.length} 筆記錄${duplicates > 0 ? `（略過 ${duplicates} 筆重複）` : ''}`, 'success');
+                    renderAll();
+                } catch (error) {
+                    showAlert(document.getElementById('importAlert'),
+                        `匯入失敗：${error.message}`, 'error');
+                }
             } else {
                 showAlert(document.getElementById('importAlert'),
                     `沒有新記錄可匯入（${duplicates} 筆重複）`, 'error');
@@ -2405,6 +2411,27 @@ nKai	15000'></textarea>
                 renderAll();
             } catch (error) {
                 alert('彙整失敗：' + error.message);
+            }
+        }
+
+        // 強制從 API 同步所有數據
+        async function forceSync() {
+            if (!confirm('確定要從伺服器重新載入所有資料嗎？\n\n這會覆蓋本地資料。')) return;
+
+            showLoading(true);
+            try {
+                await Promise.all([
+                    syncMembersFromAPI(),
+                    syncEnergyFromAPI(),
+                    syncSeasonsFromAPI()
+                ]);
+                alert('同步完成！');
+                renderAll();
+                renderMemberList();
+            } catch (error) {
+                alert('同步失敗：' + error.message);
+            } finally {
+                showLoading(false);
             }
         }
 
