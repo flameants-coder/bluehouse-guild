@@ -3511,7 +3511,7 @@ nKai	15000'></textarea>
         // 從 API 同步虹吸能量數據
         async function syncEnergyFromAPI() {
             try {
-                const result = await apiRequest('/energy?limit=1000');
+                const result = await apiRequest('/energy?limit=100000');
                 const records = result.records.map(r => ({
                     id: r._id,
                     memberName: r.memberName,
