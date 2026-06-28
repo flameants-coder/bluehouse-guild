@@ -865,7 +865,7 @@
 </head>
 <body>
     <!-- 登入彈窗 -->
-    <div id="loginModal" class="login-modal">
+    <div id="loginModal" class="login-modal hidden">
         <div class="login-box">
             <h2>Blue House 公會管理系統</h2>
             <div class="form-group">
@@ -879,16 +879,17 @@
             <div id="loginError" class="alert alert-error hidden"></div>
             <div class="btn-group">
                 <button class="btn" onclick="doLogin()">登入</button>
-                <button class="btn btn-secondary" onclick="guestMode()">訪客模式</button>
+                <button class="btn btn-secondary" onclick="hideLoginModal()">取消</button>
             </div>
         </div>
     </div>
 
     <div class="container">
         <!-- 使用者狀態列 -->
-        <div id="userBar" class="user-bar hidden">
+        <div id="userBar" class="user-bar">
             <span id="userInfo" class="user-info"></span>
-            <button class="btn btn-secondary btn-logout" onclick="doLogout()">登出</button>
+            <button id="loginBtn" class="btn btn-logout" onclick="showLoginModal()">登入</button>
+            <button id="logoutBtn" class="btn btn-secondary btn-logout" onclick="doLogout()" style="display:none;">登出</button>
         </div>
 
         <h1>Blue house公會管理系統</h1>
@@ -1508,13 +1509,12 @@ nKai	15000'></textarea>
         function doLogout() {
             localStorage.removeItem(AUTH_TOKEN_KEY);
             localStorage.removeItem(USER_INFO_KEY);
-            showLoginModal();
+            guestMode();
         }
 
         // 顯示登入彈窗
         function showLoginModal() {
             document.getElementById('loginModal').classList.remove('hidden');
-            document.getElementById('userBar').classList.add('hidden');
         }
 
         // 隱藏登入彈窗
@@ -1523,7 +1523,6 @@ nKai	15000'></textarea>
             document.getElementById('loginUsername').value = '';
             document.getElementById('loginPassword').value = '';
             document.getElementById('loginError').classList.add('hidden');
-            document.getElementById('userBar').classList.remove('hidden');
         }
 
         // 根據角色更新 UI
@@ -1533,12 +1532,17 @@ nKai	15000'></textarea>
 
             // 更新使用者資訊顯示
             const userInfoEl = document.getElementById('userInfo');
-            if (user) {
-                if (isAdminUser) {
-                    userInfoEl.innerHTML = '<span class="role-admin">管理員</span>';
-                } else {
-                    userInfoEl.innerHTML = '<span class="role-guest">訪客模式</span>';
-                }
+            const loginBtn = document.getElementById('loginBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            if (isAdminUser) {
+                userInfoEl.innerHTML = '<span class="role-admin">管理員</span>';
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = '';
+            } else {
+                userInfoEl.innerHTML = '<span class="role-guest">訪客模式</span>';
+                loginBtn.style.display = '';
+                logoutBtn.style.display = 'none';
             }
 
             // 顯示/隱藏管理功能
@@ -1588,20 +1592,22 @@ nKai	15000'></textarea>
         async function initAuth() {
             const user = getUserInfo();
 
+            // 預設為訪客模式
             if (!user) {
-                showLoginModal();
+                guestMode();
                 return;
             }
 
+            // 管理員需驗證 Token
             if (user.role === 'admin') {
                 const isValid = await validateToken();
                 if (!isValid) {
-                    showLoginModal();
+                    // Token 無效，退回訪客模式
+                    guestMode();
                     return;
                 }
             }
 
-            hideLoginModal();
             updateUIForRole();
         }
 
