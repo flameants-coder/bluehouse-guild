@@ -3955,9 +3955,12 @@ nKai	15000'></textarea>
         async function syncMembersFromAPI() {
             try {
                 const members = await apiRequest('/members');
+                // 確保 members 是陣列
+                const memberArray = Array.isArray(members) ? members : [];
                 const data = {
-                    members: members.map(m => ({
+                    members: memberArray.map(m => ({
                         name: m.name,
+                        roles: m.roles || [],
                         role: m.role,
                         joinDate: m.joinDate
                     })),
@@ -3975,7 +3978,9 @@ nKai	15000'></textarea>
         async function syncEnergyFromAPI() {
             try {
                 const result = await apiRequest('/energy?limit=100000');
-                const records = result.records.map(r => ({
+                // 確保 result.records 是陣列
+                const recordArray = Array.isArray(result?.records) ? result.records : [];
+                const records = recordArray.map(r => ({
                     id: r._id,
                     memberName: r.memberName,
                     action: r.action,
@@ -3995,8 +4000,10 @@ nKai	15000'></textarea>
         async function syncSeasonsFromAPI() {
             try {
                 const seasons = await apiRequest('/seasons');
+                // 確保 seasons 是陣列
+                const seasonArray = Array.isArray(seasons) ? seasons : [];
                 const ppData = {
-                    seasons: seasons.map(s => ({
+                    seasons: seasonArray.map(s => ({
                         id: s._id,
                         name: s.name,
                         scores: s.scores || {
@@ -4006,13 +4013,13 @@ nKai	15000'></textarea>
                             bottomlessAbyss: []
                         }
                     })),
-                    currentSeason: seasons.length > 0 ? seasons[0]._id : null
+                    currentSeason: seasonArray.length > 0 ? seasonArray[0]._id : null
                 };
                 localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(ppData));
 
                 // 同步抽獎數據
                 const lotteryData = { seasons: {} };
-                seasons.forEach(s => {
+                seasonArray.forEach(s => {
                     lotteryData.seasons[s._id] = {
                         prizes: s.lottery?.prizes || [],
                         history: s.lottery?.history || [],
