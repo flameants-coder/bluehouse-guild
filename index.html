@@ -2833,12 +2833,40 @@ nKai	15000'></textarea>
                 alert('此操作需要管理員權限');
                 return;
             }
-            if (!confirm('確定要清除所有成員資料嗎？此操作無法復原！')) return;
+
+            const choice = prompt(
+                '請選擇要清除的資料範圍：\n\n' +
+                '1 = 只清除本地資料（瀏覽器）\n' +
+                '2 = 只清除資料庫（伺服器）\n' +
+                '3 = 清除全部（本地 + 資料庫）\n' +
+                '0 = 取消\n\n' +
+                '輸入選項 (1/2/3/0):'
+            );
+
+            if (choice === '0' || choice === null) return;
+
+            const clearLocal = choice === '1' || choice === '3';
+            const clearDatabase = choice === '2' || choice === '3';
+
+            if (!clearLocal && !clearDatabase) {
+                alert('無效選項，操作取消');
+                return;
+            }
+
+            const targets = [];
+            if (clearLocal) targets.push('本地');
+            if (clearDatabase) targets.push('資料庫');
+
+            if (!confirm(`確定要清除${targets.join('和')}的成員資料嗎？\n\n⚠️ 此操作無法復原！`)) return;
 
             try {
-                await apiRequest('/members', { method: 'DELETE' });
-                localStorage.removeItem(MEMBER_STORAGE_KEY);
-                alert('所有成員資料已清除');
+                if (clearDatabase) {
+                    await apiRequest('/members', { method: 'DELETE' });
+                }
+                if (clearLocal) {
+                    localStorage.removeItem(MEMBER_STORAGE_KEY);
+                }
+                alert(`已清除${targets.join('和')}的成員資料`);
                 renderMemberList();
                 renderAll();
             } catch (error) {
