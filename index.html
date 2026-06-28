@@ -1834,6 +1834,11 @@ nKai	15000'></textarea>
         }
 
         async function confirmImport() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             if (pendingImportRecords.length === 0) {
                 previewImport();
                 if (pendingImportRecords.length === 0) return;
@@ -1887,6 +1892,11 @@ nKai	15000'></textarea>
         }
 
         function addRecord(memberName, action, quantity, datetime) {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const records = getRecords();
             const finalQuantity = action === '領出' ? -Math.abs(quantity) : Math.abs(quantity);
 
@@ -1907,11 +1917,22 @@ nKai	15000'></textarea>
             renderAll();
         }
 
-        function deleteRecord(id) {
+        async function deleteRecord(id) {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             if (!confirm('確定要刪除這筆記錄嗎？')) return;
-            const records = getRecords().filter(r => r.id !== id);
-            saveRecords(records);
-            renderAll();
+
+            try {
+                await apiRequest(`/energy/${id}`, { method: 'DELETE' });
+                const records = getRecords().filter(r => r.id !== id);
+                saveRecords(records);
+                renderAll();
+            } catch (error) {
+                alert('刪除失敗：' + error.message);
+            }
         }
 
         // 彙整模式：當記錄超過 5000 筆時自動啟用
@@ -2284,15 +2305,31 @@ nKai	15000'></textarea>
             URL.revokeObjectURL(url);
         }
 
-        function clearAllData() {
+        async function clearAllData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
             if (!confirm('確定要清除所有虹吸能量資料嗎？此操作無法復原！')) return;
             if (!confirm('再次確認：真的要刪除全部記錄嗎？')) return;
-            localStorage.removeItem(STORAGE_KEY);
-            renderAll();
+
+            try {
+                await apiRequest('/energy', { method: 'DELETE' });
+                localStorage.removeItem(STORAGE_KEY);
+                alert('所有記錄已清除');
+                renderAll();
+            } catch (error) {
+                alert('清除失敗：' + error.message);
+            }
         }
 
         // 彙整所有記錄（依遊戲ID合併）
         async function aggregateRecords() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const records = getRecords();
             if (records.length === 0) {
                 alert('沒有記錄可彙整');
@@ -2397,6 +2434,11 @@ nKai	15000'></textarea>
         }
 
         async function confirmMemberList() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             if (pendingMemberList.length === 0) {
                 previewMemberList();
                 if (pendingMemberList.length === 0) return;
@@ -2519,11 +2561,22 @@ nKai	15000'></textarea>
             URL.revokeObjectURL(url);
         }
 
-        function clearMemberData() {
+        async function clearMemberData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
             if (!confirm('確定要清除所有成員資料嗎？此操作無法復原！')) return;
-            localStorage.removeItem(MEMBER_STORAGE_KEY);
-            renderMemberList();
-            renderAll();
+
+            try {
+                await apiRequest('/members', { method: 'DELETE' });
+                localStorage.removeItem(MEMBER_STORAGE_KEY);
+                alert('所有成員資料已清除');
+                renderMemberList();
+                renderAll();
+            } catch (error) {
+                alert('清除失敗：' + error.message);
+            }
         }
 
         // ==================== 力量點功能 ====================
@@ -2573,42 +2626,59 @@ nKai	15000'></textarea>
             }
         }
 
-        function createSeason() {
-            const nameInput = document.getElementById('newSeasonName');
-            const name = nameInput.value.trim();
-            const alert = document.getElementById('seasonAlert');
-
-            if (!name) {
-                showAlert(alert, '請輸入賽季名稱', 'error');
+        async function createSeason() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
                 return;
             }
 
-            const data = getPPData();
-            const id = 'season_' + Date.now();
+            const nameInput = document.getElementById('newSeasonName');
+            const name = nameInput.value.trim();
+            const alertEl = document.getElementById('seasonAlert');
 
-            data.seasons.push({
-                id,
-                name,
-                createTime: new Date().toISOString(),
-                scores: {
-                    hideoutCore: [],
-                    crystalSpider: [],
-                    hellGate: [],
-                    bottomlessAbyss: []
-                }
-            });
+            if (!name) {
+                showAlert(alertEl, '請輸入賽季名稱', 'error');
+                return;
+            }
 
-            savePPData(data);
-            nameInput.value = '';
-            showAlert(alert, `賽季「${name}」已建立`, 'success');
-            renderSeasonSelect();
+            try {
+                const result = await apiRequest('/seasons', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
 
-            // 自動選擇新建的賽季
-            document.getElementById('seasonSelect').value = id;
-            renderSeasonSelect();
+                const data = getPPData();
+                data.seasons.push({
+                    id: result._id,
+                    name: result.name,
+                    createTime: new Date().toISOString(),
+                    scores: result.scores || {
+                        hideoutCore: [],
+                        crystalSpider: [],
+                        hellGate: [],
+                        bottomlessAbyss: []
+                    }
+                });
+
+                savePPData(data);
+                nameInput.value = '';
+                showAlert(alertEl, `賽季「${name}」已建立`, 'success');
+                renderSeasonSelect();
+
+                // 自動選擇新建的賽季
+                document.getElementById('seasonSelect').value = result._id;
+                renderSeasonSelect();
+            } catch (error) {
+                showAlert(alertEl, '建立失敗：' + error.message, 'error');
+            }
         }
 
-        function deleteSeason() {
+        async function deleteSeason() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const seasonId = getCurrentSeason();
             if (!seasonId) {
                 showAlert(document.getElementById('seasonAlert'), '請先選擇要刪除的賽季', 'error');
@@ -2620,10 +2690,15 @@ nKai	15000'></textarea>
 
             if (!confirm(`確定要刪除賽季「${season.name}」嗎？此操作無法復原！`)) return;
 
-            data.seasons = data.seasons.filter(s => s.id !== seasonId);
-            savePPData(data);
-            showAlert(document.getElementById('seasonAlert'), `賽季「${season.name}」已刪除`, 'success');
-            renderSeasonSelect();
+            try {
+                await apiRequest(`/seasons/${seasonId}`, { method: 'DELETE' });
+                data.seasons = data.seasons.filter(s => s.id !== seasonId);
+                savePPData(data);
+                showAlert(document.getElementById('seasonAlert'), `賽季「${season.name}」已刪除`, 'success');
+                renderSeasonSelect();
+            } catch (error) {
+                showAlert(document.getElementById('seasonAlert'), '刪除失敗：' + error.message, 'error');
+            }
         }
 
         function parsePPRecords(text) {
@@ -2694,6 +2769,11 @@ nKai	15000'></textarea>
         }
 
         async function confirmPPImport() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const seasonId = getCurrentSeason();
             if (!seasonId) {
                 showAlert(document.getElementById('ppImportAlert'), '請先選擇賽季', 'error');
@@ -2936,7 +3016,12 @@ nKai	15000'></textarea>
             URL.revokeObjectURL(url);
         }
 
-        function clearSeasonPPData() {
+        async function clearSeasonPPData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const seasonId = getCurrentSeason();
             if (!seasonId) {
                 showAlert(document.getElementById('seasonAlert'), '請先選擇賽季', 'error');
@@ -2948,17 +3033,23 @@ nKai	15000'></textarea>
 
             if (!confirm(`確定要清除「${season.name}」的所有力量點資料嗎？`)) return;
 
-            season.scores = {
-                hideoutCore: [],
-                crystalSpider: [],
-                hellGate: [],
-                bottomlessAbyss: []
-            };
+            try {
+                await apiRequest(`/seasons/${seasonId}/scores`, { method: 'DELETE' });
 
-            savePPData(data);
-            showAlert(document.getElementById('seasonAlert'), `「${season.name}」的資料已清除`, 'success');
-            renderPPStats();
-            renderPPRanking();
+                season.scores = {
+                    hideoutCore: [],
+                    crystalSpider: [],
+                    hellGate: [],
+                    bottomlessAbyss: []
+                };
+
+                savePPData(data);
+                showAlert(document.getElementById('seasonAlert'), `「${season.name}」的資料已清除`, 'success');
+                renderPPStats();
+                renderPPRanking();
+            } catch (error) {
+                showAlert(document.getElementById('seasonAlert'), '清除失敗：' + error.message, 'error');
+            }
         }
 
         // ==================== 抽獎系統功能 ====================
@@ -3127,6 +3218,11 @@ nKai	15000'></textarea>
         }
 
         function updatePrizes() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const text = document.getElementById('prizeInput').value;
             const prizes = text.split('\n').map(p => p.trim()).filter(p => p);
 
@@ -3289,6 +3385,11 @@ nKai	15000'></textarea>
         }
 
         function spinWheel() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             if (isSpinning) return;
 
             const seasonId = document.getElementById('lotterySeasonSelect').value;
@@ -3504,23 +3605,34 @@ nKai	15000'></textarea>
             URL.revokeObjectURL(url);
         }
 
-        function clearLotteryHistory() {
+        async function clearLotteryHistory() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
             const seasonId = document.getElementById('lotterySeasonSelect').value;
             if (!seasonId) return;
 
             if (!confirm('確定要清除所有中獎記錄嗎？這將會重置所有已使用的抽獎券，讓你可以重新抽獎！')) return;
 
-            const data = getLotteryData();
-            data.seasons[seasonId].history = [];
-            data.seasons[seasonId].usedTickets = {};
-            saveLotteryData(data);
+            try {
+                await apiRequest(`/seasons/${seasonId}/lottery/history`, { method: 'DELETE' });
 
-            renderTicketPool();
-            renderWheel();
-            renderLotteryHistory();
-            renderPrizePreview();
-            updateCurrentPrize();
-            showAlert(document.getElementById('lotterySeasonAlert'), '已清除所有中獎記錄，可重新開始抽獎', 'success');
+                const data = getLotteryData();
+                data.seasons[seasonId].history = [];
+                data.seasons[seasonId].usedTickets = {};
+                saveLotteryData(data);
+
+                renderTicketPool();
+                renderWheel();
+                renderLotteryHistory();
+                renderPrizePreview();
+                updateCurrentPrize();
+                showAlert(document.getElementById('lotterySeasonAlert'), '已清除所有中獎記錄，可重新開始抽獎', 'success');
+            } catch (error) {
+                showAlert(document.getElementById('lotterySeasonAlert'), '清除失敗：' + error.message, 'error');
+            }
         }
 
         // 初始化第32賽季資料（如果不存在）
