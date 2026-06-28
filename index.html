@@ -1043,7 +1043,7 @@
                     </select>
                 </div>
                 <div id="recordsContainer">
-                    <table>
+                    <table id="recordsTable">
                         <thead>
                             <tr>
                                 <th>日期時間</th>
@@ -1066,8 +1066,12 @@
                 <h2>資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
+                    <button class="btn btn-warning admin-only" onclick="aggregateRecords()">彙整記錄</button>
                     <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
+                <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    彙整記錄：將所有記錄依遊戲ID合併，節省資料庫空間（不可復原）
+                </p>
             </div>
         </div>
 
@@ -1910,6 +1914,9 @@ nKai	15000'></textarea>
             renderAll();
         }
 
+        // 彙整模式：當記錄超過 5000 筆時自動啟用
+        let aggregatedMode = false;
+
         function renderRecords() {
             const records = getRecords();
             const filterMember = document.getElementById('memberFilter').value;
@@ -1938,6 +1945,15 @@ nKai	15000'></textarea>
                 return true;
             });
 
+            // 超過 5000 筆時自動切換到彙整模式
+            if (filteredRecords.length > 5000) {
+                aggregatedMode = true;
+                renderAggregatedRecords(filteredRecords);
+                return;
+            }
+
+            aggregatedMode = false;
+            resetTableHeader(); // 恢復原始表頭
             filteredRecords.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
 
             const totalPages = Math.ceil(filteredRecords.length / RECORDS_PER_PAGE);
@@ -1969,6 +1985,84 @@ nKai	15000'></textarea>
             `}).join('');
 
             renderPagination(totalPages);
+        }
+
+        // 彙整模式渲染：依遊戲ID彙整顯示
+        function renderAggregatedRecords(records) {
+            const tbody = document.getElementById('recordsBody');
+            const noData = document.getElementById('noData');
+            const pagination = document.getElementById('pagination');
+
+            // 依遊戲ID彙整數據
+            const aggregated = {};
+            records.forEach(r => {
+                if (!aggregated[r.memberName]) {
+                    aggregated[r.memberName] = {
+                        memberName: r.memberName,
+                        income: 0,
+                        expense: 0,
+                        recordCount: 0
+                    };
+                }
+                if (r.quantity > 0) {
+                    aggregated[r.memberName].income += r.quantity;
+                } else {
+                    aggregated[r.memberName].expense += Math.abs(r.quantity);
+                }
+                aggregated[r.memberName].recordCount++;
+            });
+
+            // 轉換為陣列並排序（依支出量降序）
+            const aggregatedList = Object.values(aggregated).sort((a, b) => b.expense - a.expense);
+
+            if (aggregatedList.length === 0) {
+                tbody.innerHTML = '';
+                noData.style.display = 'block';
+                pagination.innerHTML = '';
+                return;
+            }
+
+            noData.style.display = 'none';
+
+            // 顯示彙整模式提示
+            pagination.innerHTML = `<div style="text-align: center; color: #6c757d; padding: 10px;">
+                📊 彙整模式（共 ${records.length} 筆記錄，${aggregatedList.length} 位成員）- 記錄超過 5000 筆時自動啟用
+            </div>`;
+
+            // 修改表頭為彙整模式
+            const thead = document.querySelector('#recordsTable thead tr');
+            thead.innerHTML = `
+                <th>遊戲ID</th>
+                <th>存入總量</th>
+                <th>提領總量</th>
+                <th>淨貢獻</th>
+                <th>記錄筆數</th>
+            `;
+
+            tbody.innerHTML = aggregatedList.map(member => {
+                const net = member.income - member.expense;
+                const memberStatus = isMember(member.memberName) ? '' : '<span class="badge badge-not-member">非成員</span>';
+                return `
+                <tr>
+                    <td>${escapeHtml(member.memberName)} ${memberStatus}</td>
+                    <td class="quantity-positive">+${member.income}</td>
+                    <td class="quantity-negative">-${member.expense}</td>
+                    <td class="${net >= 0 ? 'quantity-positive' : 'quantity-negative'}">${net >= 0 ? '+' : ''}${net}</td>
+                    <td>${member.recordCount}</td>
+                </tr>
+            `}).join('');
+        }
+
+        // 恢復原始表頭
+        function resetTableHeader() {
+            const thead = document.querySelector('#recordsTable thead tr');
+            thead.innerHTML = `
+                <th>日期時間</th>
+                <th>成員名稱</th>
+                <th>操作</th>
+                <th>數量</th>
+                <th>動作</th>
+            `;
         }
 
         function renderPagination(totalPages) {
@@ -2195,6 +2289,33 @@ nKai	15000'></textarea>
             if (!confirm('再次確認：真的要刪除全部記錄嗎？')) return;
             localStorage.removeItem(STORAGE_KEY);
             renderAll();
+        }
+
+        // 彙整所有記錄（依遊戲ID合併）
+        async function aggregateRecords() {
+            const records = getRecords();
+            if (records.length === 0) {
+                alert('沒有記錄可彙整');
+                return;
+            }
+
+            if (!confirm(`確定要彙整所有 ${records.length} 筆記錄嗎？\n\n彙整後將依遊戲ID合併，個別交易記錄將被刪除！此操作無法復原！`)) return;
+            if (!confirm('再次確認：真的要彙整全部記錄嗎？')) return;
+
+            try {
+                const result = await apiRequest('/energy/aggregate', {
+                    method: 'POST'
+                });
+
+                alert(`彙整完成！\n原始記錄：${result.originalCount} 筆\n彙整後：${result.aggregatedCount} 筆\n成員數：${result.memberCount}\n節省：${result.savedRecords} 筆記錄`);
+
+                // 重新同步資料
+                await syncEnergyFromAPI();
+                resetTableHeader();
+                renderAll();
+            } catch (error) {
+                alert('彙整失敗：' + error.message);
+            }
         }
 
         // ==================== 成員名單功能 ====================

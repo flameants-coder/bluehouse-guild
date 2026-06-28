@@ -121,4 +121,76 @@ router.delete('/', adminOnly, async (req, res) => {
     }
 });
 
+// 彙整記錄 - 依遊戲ID合併所有記錄 (需管理員權限)
+router.post('/aggregate', adminOnly, async (req, res) => {
+    try {
+        // 先統計每個成員的收入和支出總量
+        const aggregation = await EnergyRecord.aggregate([
+            {
+                $group: {
+                    _id: '$memberName',
+                    totalIncome: {
+                        $sum: { $cond: [{ $eq: ['$action', '收入'] }, '$quantity', 0] }
+                    },
+                    totalExpense: {
+                        $sum: { $cond: [{ $eq: ['$action', '支出'] }, '$quantity', 0] }
+                    },
+                    recordCount: { $sum: 1 }
+                }
+            }
+        ]);
+
+        if (aggregation.length === 0) {
+            return res.json({ message: '沒有記錄可彙整', aggregatedCount: 0 });
+        }
+
+        const originalCount = await EnergyRecord.countDocuments();
+
+        // 刪除所有舊記錄
+        await EnergyRecord.deleteMany({});
+
+        // 建立彙整後的記錄
+        const now = new Date();
+        const newRecords = [];
+
+        aggregation.forEach(member => {
+            // 如果有收入，建立一筆收入彙整記錄
+            if (member.totalIncome > 0) {
+                newRecords.push({
+                    memberName: member._id,
+                    action: '收入',
+                    quantity: member.totalIncome,
+                    datetime: now,
+                    note: `彙整記錄 (原 ${member.recordCount} 筆)`
+                });
+            }
+            // 如果有支出，建立一筆支出彙整記錄
+            if (member.totalExpense < 0) {
+                newRecords.push({
+                    memberName: member._id,
+                    action: '支出',
+                    quantity: member.totalExpense,
+                    datetime: now,
+                    note: `彙整記錄 (原 ${member.recordCount} 筆)`
+                });
+            }
+        });
+
+        // 插入彙整後的記錄
+        if (newRecords.length > 0) {
+            await EnergyRecord.insertMany(newRecords);
+        }
+
+        res.json({
+            message: '記錄彙整完成',
+            originalCount,
+            aggregatedCount: newRecords.length,
+            memberCount: aggregation.length,
+            savedRecords: originalCount - newRecords.length
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = router;
