@@ -97,10 +97,28 @@ router.post('/', adminOnly, async (req, res) => {
 router.post('/bulk', adminOnly, async (req, res) => {
     try {
         const { records } = req.body;
-        const savedRecords = await EnergyRecord.insertMany(records);
+
+        // 使用 ordered: false 讓 MongoDB 繼續處理即使遇到重複
+        // 重複的記錄會被跳過，其他記錄仍會被插入
+        const result = await EnergyRecord.insertMany(records, {
+            ordered: false
+        }).catch(err => {
+            // 處理批量插入錯誤（包含重複鍵錯誤）
+            if (err.code === 11000 || err.writeErrors) {
+                // 返回成功插入的記錄
+                return err.insertedDocs || [];
+            }
+            throw err;
+        });
+
+        const savedRecords = Array.isArray(result) ? result : [];
+        const skippedCount = records.length - savedRecords.length;
+
         res.status(201).json({
-            message: `已新增 ${savedRecords.length} 筆記錄`,
-            records: savedRecords
+            message: `已新增 ${savedRecords.length} 筆記錄` +
+                     (skippedCount > 0 ? `，跳過 ${skippedCount} 筆重複記錄` : ''),
+            records: savedRecords,
+            skippedDuplicates: skippedCount
         });
     } catch (error) {
         res.status(400).json({ message: error.message });

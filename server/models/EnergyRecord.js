@@ -77,5 +77,10 @@ energyRecordSchema.index({ action: 1 });
 // 複合索引：常用的查詢組合
 energyRecordSchema.index({ memberName: 1, datetime: -1 });
 energyRecordSchema.index({ action: 1, datetime: -1 });
+// 唯一複合索引：防止相同時間戳記的重複記錄
+energyRecordSchema.index(
+    { memberName: 1, datetime: 1, quantity: 1 },
+    { unique: true, background: true }
+);
 
 module.exports = mongoose.model('EnergyRecord', energyRecordSchema);

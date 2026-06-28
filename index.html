@@ -1756,7 +1756,10 @@ nKai	15000'></textarea>
 
         function getRecords() {
             const data = localStorage.getItem(STORAGE_KEY);
-            return data ? JSON.parse(data) : [];
+            if (!data) return [];
+            const parsed = JSON.parse(data);
+            // 確保返回陣列
+            return Array.isArray(parsed) ? parsed : [];
         }
 
         function saveRecords(records) {
@@ -1765,7 +1768,13 @@ nKai	15000'></textarea>
 
         function getMembers() {
             const data = localStorage.getItem(MEMBER_STORAGE_KEY);
-            return data ? JSON.parse(data) : { members: [], updateTime: null };
+            if (!data) return { members: [], updateTime: null };
+            const parsed = JSON.parse(data);
+            // 確保 members 是陣列
+            return {
+                ...parsed,
+                members: Array.isArray(parsed.members) ? parsed.members : []
+            };
         }
 
         function saveMembers(data) {
@@ -2489,7 +2498,8 @@ nKai	15000'></textarea>
                 if (ppData.seasons?.length > 0) {
                     for (const season of ppData.seasons) {
                         // 檢查賽季是否存在，不存在則創建
-                        const existingSeasons = await apiRequest('/seasons');
+                        const existingSeasonsResponse = await apiRequest('/seasons');
+                        const existingSeasons = Array.isArray(existingSeasonsResponse) ? existingSeasonsResponse : [];
                         const seasonExists = existingSeasons.some(s => s._id === season.id || s.name === season.name);
 
                         let seasonId = season.id;
@@ -2631,8 +2641,8 @@ nKai	15000'></textarea>
 
             if (members.length > 0) {
                 const onlineCount = members.filter(m => m.isOnline).length;
-                const withRoles = members.filter(m => m.roles.length > 0).length;
-                const allRoles = [...new Set(members.flatMap(m => m.roles))];
+                const withRoles = members.filter(m => (m.roles || []).length > 0).length;
+                const allRoles = [...new Set(members.flatMap(m => m.roles || []))];
 
                 preview.innerHTML = `
                     <p>解析成功！共 <span class="count">${members.length}</span> 位成員</p>
@@ -2716,7 +2726,7 @@ nKai	15000'></textarea>
             }
 
             // 更新職位篩選器
-            const allRoles = [...new Set(memberData.members.flatMap(m => m.roles))].sort();
+            const allRoles = [...new Set(memberData.members.flatMap(m => m.roles || []))].sort();
             const roleSelect = document.getElementById('roleFilter');
             const currentRole = roleSelect.value;
             roleSelect.innerHTML = '<option value="">全部職位</option>' +
@@ -2725,12 +2735,13 @@ nKai	15000'></textarea>
 
             // 篩選成員
             let filteredMembers = memberData.members.filter(m => {
+                const roles = m.roles || [];
                 if (searchText && !m.name.toLowerCase().includes(searchText)) return false;
                 if (filterType === 'online' && !m.isOnline) return false;
                 if (filterType === 'offline' && m.isOnline) return false;
-                if (filterType === 'hasRole' && m.roles.length === 0) return false;
-                if (filterType === 'noRole' && m.roles.length > 0) return false;
-                if (roleFilter && !m.roles.includes(roleFilter)) return false;
+                if (filterType === 'hasRole' && roles.length === 0) return false;
+                if (filterType === 'noRole' && roles.length > 0) return false;
+                if (roleFilter && !roles.includes(roleFilter)) return false;
                 return true;
             });
 
@@ -2743,7 +2754,7 @@ nKai	15000'></textarea>
             // 更新統計
             document.getElementById('totalMemberCount').textContent = memberData.members.length;
             document.getElementById('onlineMemberCount').textContent = memberData.members.filter(m => m.isOnline).length;
-            document.getElementById('roleCount').textContent = memberData.members.filter(m => m.roles.length > 0).length;
+            document.getElementById('roleCount').textContent = memberData.members.filter(m => (m.roles || []).length > 0).length;
 
             if (filteredMembers.length === 0) {
                 container.innerHTML = '';
@@ -2760,7 +2771,7 @@ nKai	15000'></textarea>
                     </div>
                     <div class="member-info">${m.isOnline ? '' : '最後上線: ' + escapeHtml(m.lastSeen)}</div>
                     <div class="member-roles">
-                        ${m.roles.map(r => `<span class="badge badge-role">${escapeHtml(r)}</span>`).join('')}
+                        ${(m.roles || []).map(r => `<span class="badge badge-role">${escapeHtml(r)}</span>`).join('')}
                     </div>
                 </div>
             `).join('');
@@ -2800,7 +2811,13 @@ nKai	15000'></textarea>
 
         function getPPData() {
             const data = localStorage.getItem(PP_STORAGE_KEY);
-            return data ? JSON.parse(data) : { seasons: [] };
+            if (!data) return { seasons: [] };
+            const parsed = JSON.parse(data);
+            // 確保 seasons 是陣列
+            return {
+                ...parsed,
+                seasons: Array.isArray(parsed.seasons) ? parsed.seasons : []
+            };
         }
 
         function savePPData(data) {
@@ -3278,7 +3295,13 @@ nKai	15000'></textarea>
 
         function getLotteryData() {
             const data = localStorage.getItem(LOTTERY_STORAGE_KEY);
-            return data ? JSON.parse(data) : { seasons: {} };
+            if (!data) return { seasons: {} };
+            const parsed = JSON.parse(data);
+            // 確保 seasons 是物件
+            return {
+                ...parsed,
+                seasons: (parsed.seasons && typeof parsed.seasons === 'object') ? parsed.seasons : {}
+            };
         }
 
         function saveLotteryData(data) {
