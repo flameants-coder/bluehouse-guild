@@ -1304,8 +1304,12 @@ nKai	15000'></textarea>
                 <h2>力量點資料管理</h2>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" onclick="exportPPData()">匯出力量點資料</button>
+                    <button class="btn btn-success admin-only" onclick="uploadSeasonPPData()">上傳本賽季資料</button>
                     <button class="btn btn-danger admin-only" onclick="clearSeasonPPData()">清除本賽季資料</button>
                 </div>
+                <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    上傳本賽季資料：將本地的力量點資料上傳到資料庫
+                </p>
             </div>
         </div>
 
@@ -2989,12 +2993,34 @@ nKai	15000'></textarea>
             const data = getPPData();
             const season = data.seasons.find(s => s.id === seasonId);
 
-            if (!confirm(`確定要刪除賽季「${season.name}」嗎？此操作無法復原！`)) return;
+            const choice = prompt(
+                `刪除賽季「${season.name}」\n\n` +
+                '請選擇要刪除的資料範圍：\n\n' +
+                '1 = 只刪除本地資料（瀏覽器）\n' +
+                '2 = 只刪除資料庫（伺服器）\n' +
+                '3 = 刪除全部（本地 + 資料庫）\n' +
+                '0 = 取消\n\n' +
+                '輸入選項 (1/2/3/0):'
+            );
+
+            if (choice === '0' || choice === null) return;
+
+            const clearLocal = choice === '1' || choice === '3';
+            const clearDatabase = choice === '2' || choice === '3';
+
+            if (!clearLocal && !clearDatabase) {
+                alert('無效選項，操作取消');
+                return;
+            }
 
             try {
-                await apiRequest(`/seasons/${seasonId}`, { method: 'DELETE' });
-                data.seasons = data.seasons.filter(s => s.id !== seasonId);
-                savePPData(data);
+                if (clearDatabase) {
+                    await apiRequest(`/seasons/${seasonId}`, { method: 'DELETE' });
+                }
+                if (clearLocal) {
+                    data.seasons = data.seasons.filter(s => s.id !== seasonId);
+                    savePPData(data);
+                }
                 showAlert(document.getElementById('seasonAlert'), `賽季「${season.name}」已刪除`, 'success');
                 renderSeasonSelect();
             } catch (error) {
@@ -3322,6 +3348,55 @@ nKai	15000'></textarea>
             URL.revokeObjectURL(url);
         }
 
+        async function uploadSeasonPPData() {
+            if (!isAdmin()) {
+                alert('此操作需要管理員權限');
+                return;
+            }
+
+            const seasonId = getCurrentSeason();
+            if (!seasonId) {
+                showAlert(document.getElementById('seasonAlert'), '請先選擇賽季', 'error');
+                return;
+            }
+
+            const data = getPPData();
+            const season = data.seasons.find(s => s.id === seasonId);
+
+            if (!season || !season.scores) {
+                alert('本地沒有力量點資料可上傳');
+                return;
+            }
+
+            const activities = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss'];
+            const activityNames = { hideoutCore: '藏身處核心', crystalSpider: '水晶蜘蛛', hellGate: '地獄之門', bottomlessAbyss: '無底深淵' };
+            let totalCount = 0;
+            activities.forEach(act => {
+                totalCount += (season.scores[act] || []).length;
+            });
+
+            if (totalCount === 0) {
+                alert('本賽季沒有力量點資料可上傳');
+                return;
+            }
+
+            if (!confirm(`確定要上傳「${season.name}」的力量點資料嗎？\n\n共 ${totalCount} 筆分數記錄`)) return;
+
+            try {
+                for (const activity of activities) {
+                    if (season.scores[activity] && season.scores[activity].length > 0) {
+                        await syncPPScoresToAPI(seasonId, activity, season.scores[activity]);
+                    }
+                }
+                await syncSeasonsFromAPI();
+                showAlert(document.getElementById('seasonAlert'), `「${season.name}」的資料已上傳`, 'success');
+                renderPPStats();
+                renderPPRanking();
+            } catch (error) {
+                showAlert(document.getElementById('seasonAlert'), '上傳失敗：' + error.message, 'error');
+            }
+        }
+
         async function clearSeasonPPData() {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
@@ -3337,19 +3412,39 @@ nKai	15000'></textarea>
             const data = getPPData();
             const season = data.seasons.find(s => s.id === seasonId);
 
-            if (!confirm(`確定要清除「${season.name}」的所有力量點資料嗎？`)) return;
+            const choice = prompt(
+                `清除「${season.name}」的力量點資料\n\n` +
+                '請選擇要清除的資料範圍：\n\n' +
+                '1 = 只清除本地資料（瀏覽器）\n' +
+                '2 = 只清除資料庫（伺服器）\n' +
+                '3 = 清除全部（本地 + 資料庫）\n' +
+                '0 = 取消\n\n' +
+                '輸入選項 (1/2/3/0):'
+            );
+
+            if (choice === '0' || choice === null) return;
+
+            const clearLocal = choice === '1' || choice === '3';
+            const clearDatabase = choice === '2' || choice === '3';
+
+            if (!clearLocal && !clearDatabase) {
+                alert('無效選項，操作取消');
+                return;
+            }
 
             try {
-                await apiRequest(`/seasons/${seasonId}/scores`, { method: 'DELETE' });
-
-                season.scores = {
-                    hideoutCore: [],
-                    crystalSpider: [],
-                    hellGate: [],
-                    bottomlessAbyss: []
-                };
-
-                savePPData(data);
+                if (clearDatabase) {
+                    await apiRequest(`/seasons/${seasonId}/scores`, { method: 'DELETE' });
+                }
+                if (clearLocal) {
+                    season.scores = {
+                        hideoutCore: [],
+                        crystalSpider: [],
+                        hellGate: [],
+                        bottomlessAbyss: []
+                    };
+                    savePPData(data);
+                }
                 showAlert(document.getElementById('seasonAlert'), `「${season.name}」的資料已清除`, 'success');
                 renderPPStats();
                 renderPPRanking();
