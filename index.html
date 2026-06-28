@@ -1072,14 +1072,13 @@
                     <button class="btn btn-secondary" onclick="exportData()">匯出資料</button>
                     <button class="btn" onclick="forceSync()">從伺服器同步</button>
                     <button class="btn btn-success admin-only" onclick="uploadLocalData()">上傳本地資料</button>
-                    <button class="btn btn-warning admin-only" onclick="aggregateRecords()">彙整記錄</button>
                     <button class="btn btn-info admin-only" onclick="fixDataConsistency()">修復數據</button>
                     <button class="btn btn-danger admin-only" onclick="clearAllData()">清除所有資料</button>
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
-                    從伺服器同步：從伺服器重新載入所有資料<br>
-                    上傳本地資料：把瀏覽器中的記錄上傳到伺服器（首次使用或資料遺失時）<br>
-                    彙整記錄：保留最新 5000 筆，較舊的記錄依遊戲ID合併（不可復原）
+                    從伺服器同步：清除本地資料，從伺服器載入最新資料<br>
+                    上傳本地資料：把瀏覽器中的原始記錄上傳到伺服器（彙整記錄會被過濾）<br>
+                    📊 超過 5000 筆記錄時會自動啟用彙整顯示模式
                 </p>
             </div>
         </div>
@@ -2387,55 +2386,25 @@ nKai	15000'></textarea>
             }
         }
 
-        // 彙整所有記錄（依遊戲ID合併）
-        async function aggregateRecords() {
-            if (!isAdmin()) {
-                alert('此操作需要管理員權限');
-                return;
-            }
-
-            const records = getRecords();
-            if (records.length === 0) {
-                alert('沒有記錄可彙整');
-                return;
-            }
-
-            if (records.length <= 5000) {
-                alert(`記錄數量 (${records.length}) 未超過 5000 筆，無需彙整`);
-                return;
-            }
-
-            if (!confirm(`確定要彙整舊記錄嗎？\n\n• 保留最新 5000 筆記錄不變\n• 較舊的 ${records.length - 5000} 筆將依遊戲ID合併\n\n此操作無法復原！`)) return;
-            if (!confirm('再次確認：真的要彙整舊記錄嗎？')) return;
-
-            try {
-                const result = await apiRequest('/energy/aggregate', {
-                    method: 'POST'
-                });
-
-                // 重新同步資料（重要：確保本地與伺服器一致）
-                await syncEnergyFromAPI();
-                resetTableHeader();
-                renderAll();
-
-                alert(`彙整完成！\n\n原始記錄：${result.originalCount} 筆\n保留最新：${result.keptRecent} 筆\n已彙整舊記錄：${result.oldRecordsAggregated} 筆 → ${result.newAggregatedRecords} 筆\n\n最終記錄數：${result.finalCount} 筆\n節省：${result.savedRecords} 筆\n\n✓ 本地資料已自動同步`);
-            } catch (error) {
-                alert('彙整失敗：' + error.message);
-            }
-        }
-
-        // 強制從 API 同步所有數據
+        // 強制從 API 同步所有數據（清除本地資料後重新載入）
         async function forceSync() {
-            if (!confirm('確定要從伺服器重新載入所有資料嗎？\n\n這會覆蓋本地資料。')) return;
+            if (!confirm('確定要從伺服器同步資料嗎？\n\n⚠️ 本地資料將被清除，只保留伺服器上的原始資料。\n📊 超過 5000 筆時會自動啟用彙整顯示模式。')) return;
 
             showLoading(true);
             try {
+                // 清除本地資料
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(MEMBER_STORAGE_KEY);
+                localStorage.removeItem(PP_STORAGE_KEY);
+                localStorage.removeItem(LOTTERY_STORAGE_KEY);
+
+                // 從伺服器載入
                 await Promise.all([
                     syncMembersFromAPI(),
                     syncEnergyFromAPI(),
                     syncSeasonsFromAPI()
                 ]);
-                alert('同步完成！');
+                alert('同步完成！本地資料已更新為伺服器資料。');
                 renderAll();
                 renderMemberList();
             } catch (error) {
@@ -2446,6 +2415,7 @@ nKai	15000'></textarea>
         }
 
         // 上傳本地資料到伺服器（所有模組）
+        // 注意：資料庫只存原始資料，彙整記錄會被過濾掉
         async function uploadLocalData() {
             if (!isAdmin()) {
                 alert('此操作需要管理員權限');
@@ -2458,8 +2428,19 @@ nKai	15000'></textarea>
             const ppData = getPPData();
             const lotteryData = getLotteryData();
 
+            // 過濾掉彙整記錄，只保留原始資料
+            const originalRecords = energyRecords.filter(r => {
+                const note = r.note || '';
+                return !note.includes('彙整記錄');
+            });
+            const aggregatedCount = energyRecords.length - originalRecords.length;
+
             const summary = [];
-            if (energyRecords.length > 0) summary.push(`虹吸能量：${energyRecords.length} 筆`);
+            if (originalRecords.length > 0) {
+                let text = `虹吸能量：${originalRecords.length} 筆原始記錄`;
+                if (aggregatedCount > 0) text += `（過濾 ${aggregatedCount} 筆彙整記錄）`;
+                summary.push(text);
+            }
             if (memberData.members?.length > 0) summary.push(`成員名單：${memberData.members.length} 位`);
             if (ppData.seasons?.length > 0) summary.push(`力量點賽季：${ppData.seasons.length} 個`);
             if (Object.keys(lotteryData.seasons || {}).length > 0) summary.push(`抽獎資料：${Object.keys(lotteryData.seasons).length} 個賽季`);
@@ -2469,52 +2450,15 @@ nKai	15000'></textarea>
                 return;
             }
 
-            // 檢查伺服器是否有現有能量記錄
-            let serverEnergyCount = 0;
-            let replaceMode = false;
-            try {
-                const serverData = await apiRequest('/energy?limit=1');
-                serverEnergyCount = serverData.pagination?.total || 0;
-            } catch (e) {
-                console.log('無法取得伺服器記錄數量');
-            }
-
-            if (serverEnergyCount > 0 && energyRecords.length > 0) {
-                const choice = prompt(
-                    `⚠️ 伺服器已有 ${serverEnergyCount} 筆能量記錄\n` +
-                    `本地有 ${energyRecords.length} 筆記錄\n\n` +
-                    `請選擇上傳模式：\n` +
-                    `1 = 合併（跳過重複，但可能導致彙整記錄重複計算）\n` +
-                    `2 = 覆蓋（清空伺服器資料後上傳，確保資料一致）\n` +
-                    `0 = 取消\n\n` +
-                    `輸入選項 (1/2/0):`
-                );
-
-                if (choice === '0' || choice === null) return;
-                if (choice === '2') {
-                    if (!confirm('⚠️ 確定要清空伺服器的虹吸能量記錄嗎？\n\n這會刪除伺服器上的所有能量記錄，然後上傳本地資料。')) return;
-                    replaceMode = true;
-                } else if (choice !== '1') {
-                    alert('無效選項，操作取消');
-                    return;
-                }
-            } else {
-                if (!confirm(`確定要上傳以下本地資料到伺服器嗎？\n\n${summary.join('\n')}\n\n這會將瀏覽器中的資料同步到資料庫。`)) return;
-            }
+            if (!confirm(`確定要上傳以下本地資料到伺服器嗎？\n\n${summary.join('\n')}\n\n📌 資料庫只存原始資料，彙整記錄會被自動過濾。\n📌 重複的記錄會被跳過。`)) return;
 
             showLoading(true);
             const results = [];
 
             try {
-                // 1. 上傳虹吸能量記錄
-                if (energyRecords.length > 0) {
-                    // 如果是覆蓋模式，先清空伺服器資料
-                    if (replaceMode) {
-                        await apiRequest('/energy', { method: 'DELETE' });
-                        results.push('✓ 已清空伺服器能量記錄');
-                    }
-
-                    const uploadRecords = energyRecords.map(r => ({
+                // 1. 上傳虹吸能量記錄（只上傳原始資料）
+                if (originalRecords.length > 0) {
+                    const uploadRecords = originalRecords.map(r => ({
                         memberName: r.memberName,
                         action: r.action === '領出' ? '支出' : (r.action === '存入' ? '收入' : r.action),
                         quantity: r.quantity,
@@ -2522,7 +2466,9 @@ nKai	15000'></textarea>
                         note: r.note || ''
                     }));
                     await syncEnergyToAPI(uploadRecords);
-                    results.push(`✓ 虹吸能量：${energyRecords.length} 筆`);
+                    let text = `✓ 虹吸能量：${originalRecords.length} 筆`;
+                    if (aggregatedCount > 0) text += `（已過濾 ${aggregatedCount} 筆彙整記錄）`;
+                    results.push(text);
                 }
 
                 // 2. 上傳成員名單
