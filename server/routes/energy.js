@@ -8,7 +8,8 @@ const { escapeRegex, sanitizePagination } = require('../utils/helpers');
 router.get('/', async (req, res) => {
     try {
         const { member, action, startDate, endDate } = req.query;
-        const { page, limit, skip } = sanitizePagination(req.query);
+        // 虹吸能量記錄可能較多，提高 maxLimit 至 100000
+        const { page, limit, skip } = sanitizePagination(req.query, { page: 1, limit: 50, maxLimit: 100000 });
 
         const query = {};
         // 使用轉義後的正則表達式防止 ReDoS 攻擊
