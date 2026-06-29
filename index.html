@@ -144,7 +144,7 @@
                     </select>
                     <select id="memberStatsFilter">
                         <option value="">全部</option>
-                        <option value="member">公會成員</option>
+                        <option value="member" selected>公會成員</option>
                         <option value="nonmember">非公會成員</option>
                     </select>
                 </div>
@@ -183,7 +183,13 @@
                         <option value="today">今天</option>
                         <option value="week">最近7天</option>
                         <option value="month">最近30天</option>
+                        <option value="custom">自定義範圍</option>
                     </select>
+                    <div id="customDateRange" class="custom-date-range hidden">
+                        <input type="date" id="startDate" title="開始日期">
+                        <span>至</span>
+                        <input type="date" id="endDate" title="結束日期">
+                    </div>
                 </div>
                 <div id="recordsContainer">
                     <table id="recordsTable">
@@ -216,8 +222,7 @@
                 </div>
                 <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
                     從伺服器同步：清除本地資料，從伺服器載入最新資料<br>
-                    上傳本地資料：把瀏覽器中的原始記錄上傳到伺服器（彙整記錄會被過濾）<br>
-                    📊 超過 5000 筆記錄時會自動啟用彙整顯示模式
+                    上傳本地資料：把瀏覽器中的原始記錄上傳到伺服器
                 </p>
             </div>
         </div>
@@ -1202,9 +1207,6 @@ nKai	15000'></textarea>
             }
         }
 
-        // 彙整模式：當記錄超過 5000 筆時自動啟用
-        let aggregatedMode = false;
-
         function renderRecords() {
             const records = getRecords();
             const filterMember = document.getElementById('memberFilter').value;
@@ -1232,20 +1234,24 @@ nKai	15000'></textarea>
                     } else if (filterDate === 'month') {
                         const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
                         if (recordDate < monthAgo) return false;
+                    } else if (filterDate === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate) {
+                            const start = new Date(startDate);
+                            start.setHours(0, 0, 0, 0);
+                            if (recordDate < start) return false;
+                        }
+                        if (endDate) {
+                            const end = new Date(endDate);
+                            end.setHours(23, 59, 59, 999);
+                            if (recordDate > end) return false;
+                        }
                     }
                 }
                 return true;
             });
 
-            // 超過 5000 筆時自動切換到彙整模式
-            if (filteredRecords.length > 5000) {
-                aggregatedMode = true;
-                renderAggregatedRecords(filteredRecords);
-                return;
-            }
-
-            aggregatedMode = false;
-            resetTableHeader(); // 恢復原始表頭
             filteredRecords.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
 
             const totalPages = Math.ceil(filteredRecords.length / RECORDS_PER_PAGE);
@@ -1277,84 +1283,6 @@ nKai	15000'></textarea>
             `}).join('');
 
             renderPagination(totalPages);
-        }
-
-        // 彙整模式渲染：依遊戲ID彙整顯示
-        function renderAggregatedRecords(records) {
-            const tbody = document.getElementById('recordsBody');
-            const noData = document.getElementById('noData');
-            const pagination = document.getElementById('pagination');
-
-            // 依遊戲ID彙整數據
-            const aggregated = {};
-            records.forEach(r => {
-                if (!aggregated[r.memberName]) {
-                    aggregated[r.memberName] = {
-                        memberName: r.memberName,
-                        income: 0,
-                        expense: 0,
-                        recordCount: 0
-                    };
-                }
-                if (r.quantity > 0) {
-                    aggregated[r.memberName].income += r.quantity;
-                } else {
-                    aggregated[r.memberName].expense += Math.abs(r.quantity);
-                }
-                aggregated[r.memberName].recordCount++;
-            });
-
-            // 轉換為陣列並排序（依支出量降序）
-            const aggregatedList = Object.values(aggregated).sort((a, b) => b.expense - a.expense);
-
-            if (aggregatedList.length === 0) {
-                tbody.innerHTML = '';
-                noData.style.display = 'block';
-                pagination.innerHTML = '';
-                return;
-            }
-
-            noData.style.display = 'none';
-
-            // 顯示彙整模式提示
-            pagination.innerHTML = `<div style="text-align: center; color: #6c757d; padding: 10px;">
-                📊 彙整模式（共 ${records.length} 筆記錄，${aggregatedList.length} 位成員）- 記錄超過 5000 筆時自動啟用
-            </div>`;
-
-            // 修改表頭為彙整模式
-            const thead = document.querySelector('#recordsTable thead tr');
-            thead.innerHTML = `
-                <th>遊戲ID</th>
-                <th>存入總量</th>
-                <th>提領總量</th>
-                <th>淨貢獻</th>
-                <th>記錄筆數</th>
-            `;
-
-            tbody.innerHTML = aggregatedList.map(member => {
-                const net = member.income - member.expense;
-                const memberStatus = isMember(member.memberName) ? '' : '<span class="badge badge-not-member">非成員</span>';
-                return `
-                <tr>
-                    <td>${escapeHtml(member.memberName)} ${memberStatus}</td>
-                    <td class="quantity-positive">+${member.income}</td>
-                    <td class="quantity-negative">-${member.expense}</td>
-                    <td class="${net >= 0 ? 'quantity-positive' : 'quantity-negative'}">${net >= 0 ? '+' : ''}${net}</td>
-                    <td>${member.recordCount}</td>
-                </tr>
-            `}).join('');
-        }
-
-        // 恢復原始表頭
-        function resetTableHeader() {
-            const thead = document.querySelector('#recordsTable thead tr');
-            thead.innerHTML = `
-                <th>日期時間</th>
-                <th>成員名稱</th>
-                <th>操作</th>
-                <th>數量</th>
-                <th>動作</th>
-            `;
         }
 
         function renderPagination(totalPages) {
@@ -1624,7 +1552,7 @@ nKai	15000'></textarea>
 
         // 強制從 API 同步所有數據（清除本地資料後重新載入）
         async function forceSync() {
-            if (!confirm('確定要從伺服器同步資料嗎？\n\n⚠️ 本地資料將被清除，只保留伺服器上的原始資料。\n📊 超過 5000 筆時會自動啟用彙整顯示模式。')) return;
+            if (!confirm('確定要從伺服器同步資料嗎？\n\n⚠️ 本地資料將被清除，只保留伺服器上的原始資料。')) return;
 
             showLoading(true);
             try {
@@ -1651,7 +1579,6 @@ nKai	15000'></textarea>
         }
 
         // 上傳本地資料到伺服器（所有模組）
-        // 注意：資料庫只存原始資料，彙整記錄會被過濾掉
         async function uploadLocalData() {
             if (!isAdmin()) {
                 showWarning('此操作需要管理員權限');
@@ -1664,18 +1591,9 @@ nKai	15000'></textarea>
             const ppData = getPPData();
             const lotteryData = getLotteryData();
 
-            // 過濾掉彙整記錄，只保留原始資料
-            const originalRecords = energyRecords.filter(r => {
-                const note = r.note || '';
-                return !note.includes('彙整記錄');
-            });
-            const aggregatedCount = energyRecords.length - originalRecords.length;
-
             const summary = [];
-            if (originalRecords.length > 0) {
-                let text = `虹吸能量：${originalRecords.length} 筆原始記錄`;
-                if (aggregatedCount > 0) text += `（過濾 ${aggregatedCount} 筆彙整記錄）`;
-                summary.push(text);
+            if (energyRecords.length > 0) {
+                summary.push(`虹吸能量：${energyRecords.length} 筆記錄`);
             }
             if (memberData.members?.length > 0) summary.push(`成員名單：${memberData.members.length} 位`);
             if (ppData.seasons?.length > 0) summary.push(`力量點賽季：${ppData.seasons.length} 個`);
@@ -1686,15 +1604,15 @@ nKai	15000'></textarea>
                 return;
             }
 
-            if (!confirm(`確定要上傳以下本地資料到伺服器嗎？\n\n${summary.join('\n')}\n\n📌 資料庫只存原始資料，彙整記錄會被自動過濾。\n📌 重複的記錄會被跳過。`)) return;
+            if (!confirm(`確定要上傳以下本地資料到伺服器嗎？\n\n${summary.join('\n')}\n\n📌 重複的記錄會被跳過。`)) return;
 
             showLoading(true);
             const results = [];
 
             try {
-                // 1. 上傳虹吸能量記錄（只上傳原始資料）
-                if (originalRecords.length > 0) {
-                    const uploadRecords = originalRecords.map(r => ({
+                // 1. 上傳虹吸能量記錄
+                if (energyRecords.length > 0) {
+                    const uploadRecords = energyRecords.map(r => ({
                         memberName: r.memberName,
                         action: r.action === '領出' ? '支出' : (r.action === '存入' ? '收入' : r.action),
                         quantity: r.quantity,
@@ -1702,9 +1620,7 @@ nKai	15000'></textarea>
                         note: r.note || ''
                     }));
                     await syncEnergyToAPI(uploadRecords);
-                    let text = `✓ 虹吸能量：${originalRecords.length} 筆`;
-                    if (aggregatedCount > 0) text += `（已過濾 ${aggregatedCount} 筆彙整記錄）`;
-                    results.push(text);
+                    results.push(`✓ 虹吸能量：${energyRecords.length} 筆`);
                 }
 
                 // 2. 上傳成員名單
@@ -3616,7 +3532,19 @@ nKai	15000'></textarea>
         // 篩選器變更
         document.getElementById('memberFilter').addEventListener('change', () => { currentPage = 1; renderRecords(); });
         document.getElementById('actionFilter').addEventListener('change', () => { currentPage = 1; renderRecords(); });
-        document.getElementById('dateFilter').addEventListener('change', () => { currentPage = 1; renderRecords(); });
+        document.getElementById('dateFilter').addEventListener('change', () => {
+            const customDateRange = document.getElementById('customDateRange');
+            const filterDate = document.getElementById('dateFilter').value;
+            if (filterDate === 'custom') {
+                customDateRange.classList.remove('hidden');
+            } else {
+                customDateRange.classList.add('hidden');
+            }
+            currentPage = 1;
+            renderRecords();
+        });
+        document.getElementById('startDate').addEventListener('change', () => { currentPage = 1; renderRecords(); });
+        document.getElementById('endDate').addEventListener('change', () => { currentPage = 1; renderRecords(); });
         document.getElementById('memberStatsSort').addEventListener('change', renderMemberStats);
         document.getElementById('memberStatsFilter').addEventListener('change', renderMemberStats);
 
