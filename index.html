@@ -1215,7 +1215,11 @@ nKai	15000'></textarea>
 
             let filteredRecords = records.filter(r => {
                 if (filterMember && r.memberName !== filterMember) return false;
-                if (filterAction && r.action !== filterAction) return false;
+                // 篩選器使用「存入/領出」，資料庫使用「收入/支出」，需轉換比對
+                if (filterAction) {
+                    const dbAction = filterAction === '領出' ? '支出' : (filterAction === '存入' ? '收入' : filterAction);
+                    if (r.action !== dbAction && r.action !== filterAction) return false;
+                }
                 if (filterDate) {
                     const recordDate = new Date(r.datetime);
                     const now = new Date();
@@ -1264,7 +1268,7 @@ nKai	15000'></textarea>
                 <tr>
                     <td>${escapeHtml(record.datetime)}</td>
                     <td>${escapeHtml(record.memberName)} ${memberStatus}</td>
-                    <td><span class="badge ${record.quantity > 0 ? 'badge-deposit' : 'badge-withdraw'}">${record.action}</span></td>
+                    <td><span class="badge ${record.quantity > 0 ? 'badge-deposit' : 'badge-withdraw'}">${record.action === '收入' ? '存入' : (record.action === '支出' ? '領出' : record.action)}</span></td>
                     <td class="${record.quantity > 0 ? 'quantity-positive' : 'quantity-negative'}">${record.quantity > 0 ? '+' : ''}${record.quantity}</td>
                     <td>
                         <button class="btn btn-danger admin-only ${isAdmin() ? '' : 'guest-hidden'}" onclick="deleteRecord('${record.id}')">刪除</button>
