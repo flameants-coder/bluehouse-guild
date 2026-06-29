@@ -594,6 +594,60 @@ nKai	15000'></textarea>
     </div>
 
     <script>
+        // ==================== Toast 通知系統 ====================
+        const ToastType = { SUCCESS: 'success', ERROR: 'error', WARNING: 'warning', INFO: 'info' };
+        const ToastIcons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+
+        function initToastContainer() {
+            if (!document.getElementById('toastContainer')) {
+                const container = document.createElement('div');
+                container.id = 'toastContainer';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+        }
+
+        function toast(message, type = ToastType.INFO, duration = 4000) {
+            initToastContainer();
+            const container = document.getElementById('toastContainer');
+
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast ${type}`;
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'toast-icon';
+            iconSpan.textContent = ToastIcons[type] || ToastIcons.info;
+
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'toast-content';
+            contentSpan.textContent = message;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.textContent = '×';
+            closeBtn.onclick = () => toastEl.remove();
+
+            toastEl.appendChild(iconSpan);
+            toastEl.appendChild(contentSpan);
+            toastEl.appendChild(closeBtn);
+            container.appendChild(toastEl);
+
+            if (duration > 0) {
+                setTimeout(() => {
+                    toastEl.classList.add('hiding');
+                    setTimeout(() => toastEl.remove(), 300);
+                }, duration);
+            }
+
+            return toastEl;
+        }
+
+        // 便捷方法
+        const showSuccess = (msg, duration) => toast(msg, ToastType.SUCCESS, duration);
+        const showError = (msg, duration) => toast(msg, ToastType.ERROR, duration || 6000);
+        const showWarning = (msg, duration) => toast(msg, ToastType.WARNING, duration);
+        const showInfo = (msg, duration) => toast(msg, ToastType.INFO, duration);
+
         // API 設定
         const API_BASE_URL = 'https://bluehouse-guild-api.onrender.com/api';
 
@@ -1043,7 +1097,7 @@ nKai	15000'></textarea>
 
         async function confirmImport() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1105,7 +1159,7 @@ nKai	15000'></textarea>
 
         async function addRecord(memberName, action, quantity, datetime) {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1126,13 +1180,13 @@ nKai	15000'></textarea>
                 await syncEnergyFromAPI();
                 renderAll();
             } catch (error) {
-                alert('新增失敗：' + error.message);
+                showError('新增失敗：' + error.message);
             }
         }
 
         async function deleteRecord(id) {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1144,7 +1198,7 @@ nKai	15000'></textarea>
                 saveRecords(records);
                 renderAll();
             } catch (error) {
-                alert('刪除失敗：' + error.message);
+                showError('刪除失敗：' + error.message);
             }
         }
 
@@ -1520,7 +1574,7 @@ nKai	15000'></textarea>
 
         async function clearAllData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1539,7 +1593,7 @@ nKai	15000'></textarea>
             const clearDatabase = choice === '2' || choice === '3';
 
             if (!clearLocal && !clearDatabase) {
-                alert('無效選項，操作取消');
+                showWarning('無效選項，操作取消');
                 return;
             }
 
@@ -1557,10 +1611,10 @@ nKai	15000'></textarea>
                 if (clearLocal) {
                     localStorage.removeItem(STORAGE_KEY);
                 }
-                alert(`已清除${targets.join('和')}的記錄`);
+                showSuccess(`已清除${targets.join('和')}的記錄`);
                 renderAll();
             } catch (error) {
-                alert('清除失敗：' + error.message);
+                showError('清除失敗：' + error.message);
             }
         }
 
@@ -1582,11 +1636,11 @@ nKai	15000'></textarea>
                     syncEnergyFromAPI(),
                     syncSeasonsFromAPI()
                 ]);
-                alert('同步完成！本地資料已更新為伺服器資料。');
+                showSuccess('同步完成！本地資料已更新為伺服器資料。');
                 renderAll();
                 renderMemberList();
             } catch (error) {
-                alert('同步失敗：' + error.message);
+                showError('同步失敗：' + error.message);
             } finally {
                 showLoading(false);
             }
@@ -1596,7 +1650,7 @@ nKai	15000'></textarea>
         // 注意：資料庫只存原始資料，彙整記錄會被過濾掉
         async function uploadLocalData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1624,7 +1678,7 @@ nKai	15000'></textarea>
             if (Object.keys(lotteryData.seasons || {}).length > 0) summary.push(`抽獎資料：${Object.keys(lotteryData.seasons).length} 個賽季`);
 
             if (summary.length === 0) {
-                alert('本地沒有資料可上傳');
+                showWarning('本地沒有資料可上傳');
                 return;
             }
 
@@ -1706,11 +1760,11 @@ nKai	15000'></textarea>
                     syncSeasonsFromAPI()
                 ]);
 
-                alert(`上傳完成！\n\n${results.join('\n')}`);
+                showSuccess(`上傳完成！\n\n${results.join('\n')}`);
                 renderAll();
                 renderMemberList();
             } catch (error) {
-                alert(`上傳失敗：${error.message}\n\n已完成：\n${results.join('\n') || '無'}`);
+                showError(`上傳失敗：${error.message}\n\n已完成：\n${results.join('\n') || '無'}`);
             } finally {
                 showLoading(false);
             }
@@ -1719,7 +1773,7 @@ nKai	15000'></textarea>
         // 修復數據一致性
         async function fixDataConsistency() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1731,16 +1785,16 @@ nKai	15000'></textarea>
                 });
 
                 if (result.fixedCount === 0) {
-                    alert('所有記錄符號一致，無需修復');
+                    showInfo('所有記錄符號一致，無需修復');
                 } else {
-                    alert(`修復完成！\n\n${result.details}`);
+                    showSuccess(`修復完成！\n\n${result.details}`);
                     // 重新同步資料
                     await syncEnergyFromAPI();
                     resetTableHeader();
                     renderAll();
                 }
             } catch (error) {
-                alert('修復失敗：' + error.message);
+                showError('修復失敗：' + error.message);
             }
         }
 
@@ -1819,7 +1873,7 @@ nKai	15000'></textarea>
 
         async function confirmMemberList() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -1952,13 +2006,13 @@ nKai	15000'></textarea>
 
         async function uploadMemberData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
             const memberData = getMembers();
             if (!memberData.members || memberData.members.length === 0) {
-                alert('本地沒有成員資料可上傳');
+                showWarning('本地沒有成員資料可上傳');
                 return;
             }
 
@@ -1967,10 +2021,10 @@ nKai	15000'></textarea>
             try {
                 await syncMembersToAPI(memberData.members);
                 await syncMembersFromAPI();
-                alert(`成功上傳 ${memberData.members.length} 位成員資料`);
+                showSuccess(`成功上傳 ${memberData.members.length} 位成員資料`);
                 renderMemberList();
             } catch (error) {
-                alert('上傳失敗：' + error.message);
+                showError('上傳失敗：' + error.message);
             }
         }
 
@@ -1980,17 +2034,17 @@ nKai	15000'></textarea>
             try {
                 localStorage.removeItem(MEMBER_STORAGE_KEY);
                 await syncMembersFromAPI();
-                alert('成員資料同步完成');
+                showSuccess('成員資料同步完成');
                 renderMemberList();
                 renderAll();
             } catch (error) {
-                alert('同步失敗：' + error.message);
+                showError('同步失敗：' + error.message);
             }
         }
 
         async function clearMemberData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2009,7 +2063,7 @@ nKai	15000'></textarea>
             const clearDatabase = choice === '2' || choice === '3';
 
             if (!clearLocal && !clearDatabase) {
-                alert('無效選項，操作取消');
+                showWarning('無效選項，操作取消');
                 return;
             }
 
@@ -2026,11 +2080,11 @@ nKai	15000'></textarea>
                 if (clearLocal) {
                     localStorage.removeItem(MEMBER_STORAGE_KEY);
                 }
-                alert(`已清除${targets.join('和')}的成員資料`);
+                showSuccess(`已清除${targets.join('和')}的成員資料`);
                 renderMemberList();
                 renderAll();
             } catch (error) {
-                alert('清除失敗：' + error.message);
+                showError('清除失敗：' + error.message);
             }
         }
 
@@ -2089,7 +2143,7 @@ nKai	15000'></textarea>
 
         async function createSeason() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2136,7 +2190,7 @@ nKai	15000'></textarea>
 
         async function deleteSeason() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2165,7 +2219,7 @@ nKai	15000'></textarea>
             const clearDatabase = choice === '2' || choice === '3';
 
             if (!clearLocal && !clearDatabase) {
-                alert('無效選項，操作取消');
+                showWarning('無效選項，操作取消');
                 return;
             }
 
@@ -2253,7 +2307,7 @@ nKai	15000'></textarea>
 
         async function confirmPPImport() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2511,17 +2565,17 @@ nKai	15000'></textarea>
                 localStorage.removeItem(PP_STORAGE_KEY);
                 localStorage.removeItem(LOTTERY_STORAGE_KEY);
                 await syncSeasonsFromAPI();
-                alert('力量點資料同步完成');
+                showSuccess('力量點資料同步完成');
                 renderSeasonSelect();
                 renderLotterySeasonSelect();
             } catch (error) {
-                alert('同步失敗：' + error.message);
+                showError('同步失敗：' + error.message);
             }
         }
 
         async function uploadSeasonPPData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2535,7 +2589,7 @@ nKai	15000'></textarea>
             const season = data.seasons.find(s => s.id === seasonId);
 
             if (!season || !season.scores) {
-                alert('本地沒有力量點資料可上傳');
+                showWarning('本地沒有力量點資料可上傳');
                 return;
             }
 
@@ -2547,7 +2601,7 @@ nKai	15000'></textarea>
             });
 
             if (totalCount === 0) {
-                alert('本賽季沒有力量點資料可上傳');
+                showWarning('本賽季沒有力量點資料可上傳');
                 return;
             }
 
@@ -2570,7 +2624,7 @@ nKai	15000'></textarea>
 
         async function clearSeasonPPData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2599,7 +2653,7 @@ nKai	15000'></textarea>
             const clearDatabase = choice === '2' || choice === '3';
 
             if (!clearLocal && !clearDatabase) {
-                alert('無效選項，操作取消');
+                showWarning('無效選項，操作取消');
                 return;
             }
 
@@ -2797,7 +2851,7 @@ nKai	15000'></textarea>
 
         async function updatePrizes() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -2965,7 +3019,7 @@ nKai	15000'></textarea>
 
         function spinWheel() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -3188,7 +3242,7 @@ nKai	15000'></textarea>
 
         async function clearLotteryHistory() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
@@ -3211,7 +3265,7 @@ nKai	15000'></textarea>
             const clearDatabase = choice === '2' || choice === '3';
 
             if (!clearLocal && !clearDatabase) {
-                alert('無效選項，操作取消');
+                showWarning('無效選項，操作取消');
                 return;
             }
 
@@ -3243,13 +3297,13 @@ nKai	15000'></textarea>
 
         async function uploadLotteryData() {
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 
             const seasonId = document.getElementById('lotterySeasonSelect').value;
             if (!seasonId) {
-                alert('請先選擇賽季');
+                showWarning('請先選擇賽季');
                 return;
             }
 
@@ -3257,7 +3311,7 @@ nKai	15000'></textarea>
             const seasonData = lotteryData.seasons[seasonId];
 
             if (!seasonData) {
-                alert('本地沒有此賽季的抽獎資料');
+                showWarning('本地沒有此賽季的抽獎資料');
                 return;
             }
 
@@ -3265,7 +3319,7 @@ nKai	15000'></textarea>
             const historyCount = (seasonData.history || []).length;
 
             if (prizesCount === 0 && historyCount === 0) {
-                alert('本地沒有抽獎資料可上傳');
+                showWarning('本地沒有抽獎資料可上傳');
                 return;
             }
 
@@ -3537,7 +3591,7 @@ nKai	15000'></textarea>
 
             // 權限檢查
             if (!isAdmin()) {
-                alert('此操作需要管理員權限');
+                showWarning('此操作需要管理員權限');
                 return;
             }
 

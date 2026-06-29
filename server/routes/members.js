@@ -3,11 +3,46 @@ const router = express.Router();
 const Member = require('../models/Member');
 const { adminOnly } = require('../middleware/auth');
 
-// 取得所有成員
+// 取得成員（支援分頁）
+// 查詢參數：
+//   page: 頁碼（從 1 開始，預設 1）
+//   limit: 每頁數量（不提供則返回全部，向後相容）
+//   search: 搜尋成員名稱（可選）
 router.get('/', async (req, res) => {
     try {
-        const members = await Member.find().sort({ name: 1 });
-        res.json(members);
+        const { page, limit, search } = req.query;
+
+        // 建立查詢條件
+        const query = {};
+        if (search) {
+            query.name = { $regex: search, $options: 'i' };
+        }
+
+        // 無分頁參數時，返回全部資料（向後相容）
+        if (!limit) {
+            const members = await Member.find(query).sort({ name: 1 });
+            return res.json(members);
+        }
+
+        // 有分頁參數時，返回分頁結果
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.max(1, Math.min(500, parseInt(limit) || 50));
+        const skip = (pageNum - 1) * limitNum;
+
+        const [members, total] = await Promise.all([
+            Member.find(query).sort({ name: 1 }).skip(skip).limit(limitNum),
+            Member.countDocuments(query)
+        ]);
+
+        res.json({
+            data: members,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum)
+            }
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
