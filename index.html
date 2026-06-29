@@ -159,6 +159,11 @@
                     <input type="date" id="usageStartDate" style="width: auto;">
                     <span style="color: #aaa;">~</span>
                     <input type="date" id="usageEndDate" style="width: auto;">
+                    <select id="usageMemberFilter">
+                        <option value="">全部</option>
+                        <option value="member" selected>公會成員</option>
+                        <option value="nonmember">非公會成員</option>
+                    </select>
                     <button class="btn" onclick="renderUsageList()">篩選</button>
                     <button class="btn btn-secondary" onclick="resetUsageDateFilter()">全部期間</button>
                 </div>
@@ -1348,6 +1353,7 @@ nKai	15000'></textarea>
             // 取得日期篩選範圍
             const startDate = document.getElementById('usageStartDate').value;
             const endDate = document.getElementById('usageEndDate').value;
+            const memberFilter = document.getElementById('usageMemberFilter').value;
 
             // 篩選記錄
             let filteredRecords = records;
@@ -1383,9 +1389,16 @@ nKai	15000'></textarea>
             });
 
             // 轉換為陣列並排序（依淨使用量排序，存入多的在前）
-            const usageList = Object.entries(memberUsage)
-                .map(([name, usage]) => ({ name, usage }))
+            let usageList = Object.entries(memberUsage)
+                .map(([name, usage]) => ({ name, usage, isMember: isMember(name) }))
                 .sort((a, b) => b.usage - a.usage);
+
+            // 依成員篩選
+            if (memberFilter === 'member') {
+                usageList = usageList.filter(item => item.isMember);
+            } else if (memberFilter === 'nonmember') {
+                usageList = usageList.filter(item => !item.isMember);
+            }
 
             if (usageList.length === 0) {
                 container.innerHTML = '<div class="no-data">此期間無記錄</div>';
@@ -3547,6 +3560,7 @@ nKai	15000'></textarea>
         document.getElementById('endDate').addEventListener('change', () => { currentPage = 1; renderRecords(); });
         document.getElementById('memberStatsSort').addEventListener('change', renderMemberStats);
         document.getElementById('memberStatsFilter').addEventListener('change', renderMemberStats);
+        document.getElementById('usageMemberFilter').addEventListener('change', renderUsageList);
 
         // 成員列表篩選
         document.getElementById('memberSearch').addEventListener('input', renderMemberList);
