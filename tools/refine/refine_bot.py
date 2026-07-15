@@ -665,9 +665,9 @@ __LINEBTNS__
 </div>
 <div class="tablewrap"><table id="t">
 <thead><tr>
-<th data-c="0">線</th><th data-c="1">階</th>
+<th data-c="0">種類</th><th data-c="1">階</th>
 <th data-c="2" class="num">原料</th><th data-c="3" class="num">成品賣價<small>·7日均</small></th>
-<th data-c="4" class="num">7日量</th><th data-c="5" class="num">下階</th>
+<th data-c="4" class="num">7日量</th><th data-c="5" class="num">低階成品價格</th>
 <th data-c="6" class="num">成本</th><th data-c="7" class="num">利潤/個</th>
 <th data-c="8" class="num">利潤率</th><th data-c="9">評級</th><th>來源／備註</th>
 </tr></thead>
