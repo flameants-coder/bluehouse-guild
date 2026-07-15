@@ -21,3 +21,8 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+
+# 精煉計算器產生檔（只保留根目錄的 refine.html）
+tools/refine/refine_profit.html
+tools/refine/refine_profit.csv
+tools/refine/__pycache__/

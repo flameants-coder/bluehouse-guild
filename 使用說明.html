@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>精煉計算器 使用說明 — Blue house</title>
+<style>
+*{box-sizing:border-box}
+:root{
+ --bg:#f6f4ee;--panel:#ffffff;--panel2:#f0ede4;--line:#ddd8cc;--ink:#1e2126;
+ --muted:#5f6672;--bronze:#9a6b16;
+ --good:#15803d;--ok:#4d7c0f;--mid:#b45309;--low:#6b7280;--bad:#dc2626;--fake:#a21caf;
+}
+html,body{margin:0;background:var(--bg)}
+body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;color:var(--ink);line-height:1.75}
+.wrap{max-width:820px;margin:0 auto;padding:26px 18px 60px}
+header{border-bottom:2px solid var(--line);padding-bottom:16px;margin-bottom:8px}
+h1{font-family:Georgia,"Noto Serif TC",serif;font-weight:700;font-size:26px;margin:0;color:var(--bronze)}
+h1 small{font-size:14px;font-weight:400;color:var(--muted)}
+.lead{color:var(--muted);font-size:14px;margin-top:6px}
+h2{font-family:Georgia,"Noto Serif TC",serif;font-size:19px;margin:34px 0 10px;color:var(--ink);
+ border-left:4px solid var(--bronze);padding-left:10px}
+h3{font-size:15px;margin:20px 0 6px}
+p,li{font-size:14.5px}
+code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;font-family:ui-monospace,Consolas,monospace}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:10px 0;
+ box-shadow:0 1px 2px rgba(40,30,10,.04)}
+.step b{color:var(--bronze)}
+.grid{display:grid;grid-template-columns:1fr;gap:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0;background:var(--panel);
+ border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#efece3;font-weight:700;color:#3a3f48;font-size:12.5px}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;padding:1px 9px;border-radius:20px;color:#fff;font-size:12px;font-weight:700}
+.p5{background:var(--good)}.p4{background:var(--ok)}.p3{background:var(--mid)}.p2{background:var(--low)}.p1{background:var(--bad)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:5px;font-weight:600}
+.t-heart{background:#fce7f3;color:#be185d}.t-warn{background:#fbe6fb;color:#a21caf}
+.t-dev{background:#fff2d9;color:#9a6b16;border:1px solid #e8d3a0}.t-fill{background:#e7f0fb;color:#2b6cb0}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:2px;border:1px solid rgba(0,0,0,.15)}
+.note{background:#fff8e8;border:1px solid #e8d9a8;border-radius:9px;padding:12px 16px;margin:14px 0;font-size:14px}
+.note b{color:var(--mid)}
+.src-eg{font-family:ui-monospace,Consolas,monospace;font-size:13px;background:var(--panel2);
+ border:1px solid var(--line);border-radius:6px;padding:8px 11px;display:inline-block;margin:4px 0}
+a{color:var(--bronze)}
+.toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 18px;margin:14px 0}
+.toc a{text-decoration:none}.toc a:hover{text-decoration:underline}
+.footer{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>精煉計算器 使用說明 <small>（Blue house 公會內部用）</small></h1>
+<div class="lead">這個工具會抓 Albion 亞服的市場價，幫你算出五種資源（皮革／金屬錠／布／木板／石材）各階級精煉後賺不賺、賺多少，並自動比較陣營之心、轉換等做法哪個最省。</div>
+</header>
+
+<div class="toc">
+📖 <b>快速目錄</b>：
+<a href="#start">開始使用</a> ·
+<a href="#read">看懂表格</a> ·
+<a href="#ctrl">互動功能</a> ·
+<a href="#rating">顏色評級</a> ·
+<a href="#tags">標記符號</a> ·
+<a href="#src">來源欄怎麼讀</a> ·
+<a href="#city">城市顏色</a> ·
+<a href="#note">注意事項</a>
+</div>
+
+<h2 id="start">① 開始使用</h2>
+<div class="grid">
+<div class="step"><b>步驟 1｜更新資料</b><br>執行 <code>python refine_bot.py</code>。它會花約 3 秒抓最新市場價，並產生 <code>refine_profit.html</code>。</div>
+<div class="step"><b>步驟 2｜打開報表</b><br>用瀏覽器打開 <code>refine_profit.html</code>（雙擊，或終端機輸入 <code>start refine_profit.html</code>）。</div>
+<div class="step"><b>步驟 3｜看哪些賺</b><br>表格預設<b>依利潤率由高到低排序</b>，最上面就是最賺的。頂部有 5 張摘要卡快速掌握全局。</div>
+</div>
+<p style="color:var(--muted);font-size:13.5px">💡 資料是抓當下市場，想看最新行情就重跑步驟 1。網頁全在你電腦本機跑，不會外傳。</p>
+
+<h2 id="read">② 看懂表格</h2>
+<table>
+<tr><th>欄位</th><th>意思</th></tr>
+<tr><td><b>線 / 階</b></td><td>哪種資源、第幾階。<code>T5.1</code> = 第 5 階、附魔 1（.1/.2/.3/.4）；<code>T5</code> = 基礎。</td></tr>
+<tr><td><b>原料</b></td><td>做一個成品所需原料的成本（已自動選最便宜的買法／城市）。</td></tr>
+<tr><td><b>成品賣價·7日均</b></td><td>成品的賣出價，採<b>最近 7 天成交均價</b>（不是當下掛單，避免被天價／地板假單騙）。</td></tr>
+<tr><td><b>7日量</b></td><td>成品近 7 天成交量。量太低代表均價不太可靠。</td></tr>
+<tr><td><b>下階</b></td><td>精煉需要的下一階成品成本（例：T5 皮需要 1 個 T4 皮）。</td></tr>
+<tr><td><b>成本</b></td><td>總製作成本＝(原料＋下階)×(1−返還率)＋店鋪費。</td></tr>
+<tr><td><b>利潤/個</b> · <b>利潤率</b></td><td>做一個賺多少（已扣賣出手續費）、以及利潤率（利潤÷成本）。</td></tr>
+<tr><td><b>評級</b></td><td>依利潤率分級的顏色標籤，見下方。</td></tr>
+<tr><td><b>來源/備註</b></td><td>在哪買、在哪賣、用什麼做法，以及各種提醒標記。</td></tr>
+</table>
+
+<h2 id="ctrl">③ 互動功能（即時重算，不用重跑）</h2>
+<p>報表上方那排控制項，改了<b>整張表立刻跟著重算</b>：</p>
+<ul>
+<li><b>買料城市 / 賣品城市</b>下拉：選「全部」＝自動挑最便宜買、最貴賣的城；或指定某一城（例如你固定在藍城精煉，就兩邊都選 Martlock）。</li>
+<li><b>灌專注(+59)</b>：勾了＝有灌專注（返還率較高、成本較低）。</li>
+<li><b>活動加成</b>：遇到返還率活動時選 10% 或 20%。</li>
+</ul>
+<p>右邊會顯示當前<b>返還率</b>。另外可用線別按鈕（皮革/金屬…）、搜尋框、以及「隱藏虧損 / 隱藏量少」勾選框過濾；點任一欄位標題可重新排序。</p>
+
+<h2 id="rating">④ 顏色與評級</h2>
+<p>每一列左側色條和「評級」標籤代表利潤率高低：</p>
+<table>
+<tr><th>評級</th><th>利潤率</th></tr>
+<tr><td><span class="pill p5">賺爛</span></td><td>≥ 50%</td></tr>
+<tr><td><span class="pill p4">不錯</span></td><td>≥ 30%</td></tr>
+<tr><td><span class="pill p3">普通</span></td><td>≥ 15%</td></tr>
+<tr><td><span class="pill p2">微利</span></td><td>0% ~ 15%</td></tr>
+<tr><td><span class="pill p1">虧損</span></td><td>&lt; 0（賠錢）</td></tr>
+</table>
+
+<h2 id="tags">⑤ 標記符號說明</h2>
+<table>
+<tr><th>標記</th><th>意思</th></tr>
+<tr><td><span class="tag t-heart">♥野獸之心</span></td><td>這階用<b>陣營之心</b>替代 1 個原料比較便宜（心比原料還便宜時自動採用）。會標明是哪種心：皮革→野獸、金屬→山脈、布→藤蔓、木板→樹木。</td></tr>
+<tr><td><span class="tag t-warn">⚠量少 218</span></td><td>成品近 7 天成交量太低（&lt; 300），均價只由少量成交算出，<b>參考性低</b>、實際不好賣。</td></tr>
+<tr><td><span class="tag t-dev">↑偏高現價 X~Y</span></td><td>我們用的 7 天均價和<b>當下掛單</b>差超過 35%（↑=均價偏高、↓=偏低），後面附當前市價，<b>下手前建議進遊戲核對</b>。</td></tr>
+<tr><td><span class="tag t-fill">↺回填現價 成品/下階</span></td><td>該項近 7 天沒成交、抓不到均價，<b>改用當下即時掛單</b>回填計算。</td></tr>
+</table>
+
+<h2 id="src">⑥ 來源欄怎麼讀</h2>
+<p>來源欄告訴你「怎麼做最省」。格式是 <code>買[城市色·階級] → 賣[城市色]</code>：</p>
+<div><span class="src-eg">買Mart藍·T4 → 賣Brid黃</span> — 在藍城(Martlock)買 T4 原料、黃城(Bridgewatch)賣。</div><br>
+<p>如果用了<b>轉換</b>（銀幣把低階升上去），會顯示轉換鏈：</p>
+<div><span class="src-eg">轉階[買Brid黃·T7.1] → 賣Lymh綠</span> — 在黃城買 <b>T7.1</b>、用銀幣<b>升階</b>成 T8.1、綠城賣。</div><br>
+<div><span class="src-eg">轉附[轉附[買Thet紫·T6.1]] → 賣Brid黃</span> — 在紫城買 <b>T6.1</b>、連續<b>升附魔</b>兩次到 T6.3、黃城賣。</div>
+<p style="color:var(--muted);font-size:13.5px"><b>轉附</b>＝升附魔（同階、附魔+1）；<b>轉階</b>＝升階（階+1、同附魔）；<code>·T6.1</code> 就是你實際要買的起始階級。</p>
+
+<h2 id="city">⑦ 城市顏色對照</h2>
+<table>
+<tr><th>顏色</th><th>城市</th><th>特產（精煉加成）</th></tr>
+<tr><td><span class="dot" style="background:#7c3aed"></span>紫</td><td>Thetford</td><td>布</td></tr>
+<tr><td><span class="dot" style="background:#e5e5e5"></span>白</td><td>Fort Sterling</td><td>木板</td></tr>
+<tr><td><span class="dot" style="background:#16a34a"></span>綠</td><td>Lymhurst</td><td>皮革</td></tr>
+<tr><td><span class="dot" style="background:#eab308"></span>黃</td><td>Bridgewatch</td><td>石材</td></tr>
+<tr><td><span class="dot" style="background:#2563eb"></span>藍</td><td>Martlock</td><td>金屬錠</td></tr>
+<tr><td><span class="dot" style="background:#dc2626"></span>紅</td><td>Caerleon（中央）</td><td>—（成品賣價偏高，預設不列入）</td></tr>
+</table>
+
+<h2 id="note">⑧ 注意事項</h2>
+<div class="note">
+<b>1. 均價是「7 天中位數」不是當下價</b>：所以跟你此刻在遊戲看到的掛單會有些出入，這是刻意的——為了避免被單一天價/地板單影響。要精確時看「來源欄」的城市，或進遊戲確認。
+</div>
+<div class="note">
+<b>2. 有 <span class="tag t-warn">⚠量少</span> 或 <span class="tag t-dev">偏離現價</span> 標記的，先進遊戲核對再做</b>：這些是冷門或行情變動大的階級，算出的利潤參考性較低。真正穩的是<b>沒標記的綠色列</b>。
+</div>
+<div class="note">
+<b>3. 專注、特產城會大幅影響利潤</b>：沒灌專注、不在特產城精煉，返還率會低很多、成本變高。用上方控制項或設定檔調整成你的實際情況。
+</div>
+
+<div class="footer">
+Blue house 公會內部工具 · 資料來源：Albion Online Data Project（社群市場資料）· 價格為近似值，實際交易以遊戲內為準。<br>
+要更新行情就重跑 <code>python refine_bot.py</code>。設定（城市、返還率、會員稅率等）在 <code>config.py</code>，說明見專案 <code>README.md</code>。
+</div>
+</div>
+</body>
+</html>
