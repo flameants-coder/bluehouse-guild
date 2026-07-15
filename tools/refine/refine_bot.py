@@ -653,6 +653,7 @@ th small{font-weight:400;color:#8a8578;font-size:10px}
 <div class="opts">
 <div class="grp"><label>買料城市</label><select id="buyCity">__BUYOPTS__</select></div>
 <div class="grp"><label>賣品城市</label><select id="sellCity">__SELLOPTS__</select></div>
+<div class="grp"><label class="chk"><input type="checkbox" id="spec"__SPECCHK__>特產原料城(+__SPECVAL__)</label></div>
 <div class="grp"><label class="chk"><input type="checkbox" id="focus"__FOCUSCHK__>灌專注(+59)</label></div>
 <div class="grp"><label>活動加成</label><select id="event">__EVOPTS__</select></div>
 <div class="rr">返還率 <b id="rrv">__RR0__</b></div>
@@ -679,6 +680,7 @@ __LINEBTNS__
 var PRICES=__PRICES__;
 var S=__STRUCT__;
 var focus=__FOCUS0__,event=__EVENT0__;
+var SPEC=S.rrCity||40,cityB=S.rrCity;
 var lineMap={};S.lines.forEach(function(l){lineMap[l.name]=l;});
 var tb=document.querySelector('#t tbody');
 var rows=[].slice.call(tb.rows);
@@ -688,7 +690,7 @@ function sc(c){return c.slice(0,4)}
 function ctag(c){return sc(c)+((S.cityColor&&S.cityColor[c])||'')}
 function lblTE(t,e){return 'T'+t+(e?'.'+e:'')}
 function esc(s){return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
-function rr(){var t=S.rrBase+S.rrCity+focus+event;return t/(100+t)}
+function rr(){var t=S.rrBase+cityB+focus+event;return t/(100+t)}
 function badgeFor(m){if(m>=.5)return[5,'賺爛'];if(m>=.3)return[4,'不錯'];if(m>=.15)return[3,'普通'];if(m>=0)return[2,'微利'];return[1,'虧損']}
 function iid(t,base,e){return e==0?'T'+t+'_'+base:'T'+t+'_'+base+'_LEVEL'+e+'@'+e}
 function ival(t,e){return S.itemValue[t]*Math.pow(2,e)}
@@ -771,6 +773,7 @@ document.querySelectorAll('.lf').forEach(function(b){b.onclick=function(){
 document.getElementById('hideLoss').onchange=function(e){hideLoss=e.target.checked;apply()};
 document.getElementById('hideThin').onchange=function(e){hideThin=e.target.checked;apply()};
 document.getElementById('q').oninput=function(e){q=e.target.value.toLowerCase();apply()};
+document.getElementById('spec').onchange=function(e){cityB=e.target.checked?SPEC:0;recompute()};
 document.getElementById('focus').onchange=function(e){focus=e.target.checked?59:0;recompute()};
 document.getElementById('event').onchange=function(e){event=+e.target.value;recompute()};
 document.getElementById('buyCity').onchange=recompute;
@@ -810,6 +813,8 @@ recompute();
            .replace("__RR0__", f"{rr0:.4f}")
            .replace("__EVOPTS__", ev_opts)
            .replace("__FOCUSCHK__", " checked" if meta["focus0"] else "")
+           .replace("__SPECCHK__", " checked" if meta["rr_city"] else "")
+           .replace("__SPECVAL__", str(meta["rr_city"] or 40))
            .replace("__FOCUS0__", str(meta["focus0"])).replace("__EVENT0__", str(meta["event0"]))
            .replace("__BUYOPTS__", buy_opts).replace("__SELLOPTS__", sell_opts)
            .replace("__LINEBTNS__", line_btns)
