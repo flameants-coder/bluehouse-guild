@@ -26,3 +26,8 @@ npm-debug.log*
 tools/refine/refine_profit.html
 tools/refine/refine_profit.csv
 tools/refine/__pycache__/
+
+# 本地雜檔（匯出、暫存、誤建）
+nul
+OC_formatted.txt
+網址.txt
