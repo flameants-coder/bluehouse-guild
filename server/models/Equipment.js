@@ -32,6 +32,13 @@ const equipmentSchema = new mongoose.Schema({
         trim: true,
         default: '',
         maxlength: [200, '備註不可超過 200 個字元']
+    },
+    // 手動覆寫部位分類；空字串代表依名稱自動判斷
+    category: {
+        type: String,
+        trim: true,
+        default: '',
+        enum: ['', '頭', '身體', '鞋子', '武器', '副手', '披風', '其他']
     }
 }, {
     timestamps: true

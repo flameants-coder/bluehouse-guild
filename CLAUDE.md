@@ -9,6 +9,7 @@ Blue House 公會管理系統是一個用於管理遊戲公會的網頁應用程
 ```
 公會管理/
 ├── index.html          # 前端單頁應用 (SPA)
+├── equipment-slots.js  # 戰備庫部位對照表 (Albion 物品名→頭/身體/鞋子/武器/副手/披風)
 ├── CLAUDE.md           # 技術文檔
 ├── .gitignore          # Git 忽略規則
 └── server/             # 後端 API 服務
@@ -161,9 +162,11 @@ https://bluehouse-guild-api.onrender.com/api
   tier: Number,        // 有效階級 = 基礎階級(老手T4/專家T5/大師T6/宗師T7/禪師T8) + 附魔; null = 其他
   quantity: Number,    // 目前庫存 (累加淨值, 可為負)
   minStock: Number,    // 所需庫存量 (低於此值視為需補充)
-  note: String         // 備註
+  note: String,        // 備註
+  category: String     // 手動覆寫部位(頭/身體/鞋子/武器/副手/披風/其他)；空=依名稱自動判斷
 }
 // 唯一鍵: name + tier；品質不列入區分
+// 部位自動判斷來自 equipment-slots.js（Albion ao-bin-dumps ZH-TW 名稱→槽位對照表）
 ```
 
 ### User (使用者)

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blue house公會管理系統</title>
     <link rel="stylesheet" href="style.css">
+    <script src="equipment-slots.js"></script>
 </head>
 <body>
     <!-- 登入彈窗 -->
@@ -679,6 +680,16 @@ nKai	15000'></textarea>
                 <h2>戰備庫存</h2>
                 <div class="filters">
                     <input type="text" id="equipSearch" placeholder="搜尋物品名稱..." class="search-box">
+                    <select id="equipSlotFilter">
+                        <option value="">全部部位</option>
+                        <option value="頭">頭</option>
+                        <option value="身體">身體</option>
+                        <option value="鞋子">鞋子</option>
+                        <option value="武器">武器</option>
+                        <option value="副手">副手</option>
+                        <option value="披風">披風</option>
+                        <option value="其他">其他</option>
+                    </select>
                     <select id="equipTierFilter">
                         <option value="">全部階級</option>
                     </select>
@@ -3626,6 +3637,26 @@ nKai	15000'></textarea>
             return (tier === null || tier === undefined) ? '其他' : `T${tier}`;
         }
 
+        // 依物品名與有效階級組出 Albion 官方圖示網址（查無回 null）
+        function equipIconUrl(name, tier) {
+            const base = (typeof equipItemBaseId === 'function') ? equipItemBaseId(name) : null;
+            if (!base) return null;
+            let id = base;
+            if (tier) {
+                const shown = Math.min(8, Math.max(1, tier)); // 遊戲最高 T8，超過用附魔光效表示
+                const ench = Math.max(0, tier - 8);
+                id = base.replace(/^T\d+/, 'T' + shown) + (ench > 0 ? '@' + ench : '');
+            }
+            return `https://render.albiononline.com/v1/item/${id}.png?size=64`;
+        }
+
+        // 產生小圖 <img>（查無則回空字串）
+        function equipIconImg(name, tier) {
+            const url = equipIconUrl(name, tier);
+            if (!url) return '';
+            return `<img src="${url}" alt="" loading="lazy" style="width:36px;height:36px;vertical-align:middle;margin-right:8px;border-radius:6px;background:rgba(255,255,255,0.05);" onerror="this.style.display='none'">`;
+        }
+
         // 解析帳目紀錄文字，聚合為 { name, tier, delta } 的淨值陣列
         // 回傳 { items, lineCount, skipped }
         function parseEquipLog(text) {
@@ -3702,8 +3733,10 @@ nKai	15000'></textarea>
             const rows = sorted.map(it => {
                 const cls = it.delta >= 0 ? 'quantity-positive' : 'quantity-negative';
                 const sign = it.delta > 0 ? '+' : '';
+                const slot = (typeof classifyEquipSlot === 'function') ? classifyEquipSlot(it.name) : '其他';
                 return `<tr>
-                    <td><span class="badge badge-role">${tierLabel(it.tier)}</span> ${escapeHtml(it.name)}</td>
+                    <td><span class="badge badge-online">${slot}</span></td>
+                    <td>${equipIconImg(it.name, it.tier)}<span class="badge badge-role">${tierLabel(it.tier)}</span> ${escapeHtml(it.name)}</td>
                     <td class="${cls}" style="text-align:right;">${sign}${it.delta}</td>
                 </tr>`;
             }).join('');
@@ -3712,7 +3745,7 @@ nKai	15000'></textarea>
                 <p style="margin-bottom:10px;">解析 ${lineCount} 列，聚合為 <strong>${items.length}</strong> 項裝備${skipped ? `（略過 ${skipped} 列）` : ''}。以下為將累加的淨值：</p>
                 <div style="max-height:300px; overflow-y:auto;">
                     <table>
-                        <thead><tr><th>物品</th><th style="text-align:right;">淨值</th></tr></thead>
+                        <thead><tr><th>部位</th><th>物品</th><th style="text-align:right;">淨值</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>`;
@@ -3811,6 +3844,7 @@ nKai	15000'></textarea>
             const container = document.getElementById('equipListContainer');
             const noData = document.getElementById('noEquipData');
             const search = document.getElementById('equipSearch').value.toLowerCase();
+            const slotFilter = document.getElementById('equipSlotFilter').value;
             const tierFilter = document.getElementById('equipTierFilter').value;
             const stockFilter = document.getElementById('equipStockFilter').value;
 
@@ -3824,6 +3858,8 @@ nKai	15000'></textarea>
             tierSelect.value = currentTier;
 
             const isLow = (e) => e.minStock > 0 && e.quantity < e.minStock;
+            // 部位：優先用手動覆寫，否則依名稱自動判斷
+            const slotOf = (e) => e.category || (typeof classifyEquipSlot === 'function' ? classifyEquipSlot(e.name) : '其他');
 
             // 統計（未套用篩選）
             document.getElementById('equipTotalCount').textContent = list.length;
@@ -3833,6 +3869,7 @@ nKai	15000'></textarea>
             // 篩選
             let filtered = list.filter(e => {
                 if (search && !e.name.toLowerCase().includes(search)) return false;
+                if (slotFilter && slotOf(e) !== slotFilter) return false;
                 if (tierFilter) {
                     const t = e.tier === null ? 'none' : String(e.tier);
                     if (t !== tierFilter) return false;
@@ -3842,9 +3879,13 @@ nKai	15000'></textarea>
                 return true;
             });
 
-            // 排序：低庫存優先，其次階級、名稱
+            // 排序：低庫存優先，其次部位、階級、名稱
+            const SLOT_ORDER = { '頭': 0, '身體': 1, '鞋子': 2, '武器': 3, '副手': 4, '披風': 5, '其他': 6 };
             filtered.sort((a, b) => {
                 if (isLow(a) !== isLow(b)) return isLow(a) ? -1 : 1;
+                const sa = SLOT_ORDER[slotOf(a)] ?? 9;
+                const sb = SLOT_ORDER[slotOf(b)] ?? 9;
+                if (sa !== sb) return sa - sb;
                 const ta = a.tier === null ? 999 : a.tier;
                 const tb = b.tier === null ? 999 : b.tier;
                 if (ta !== tb) return ta - tb;
@@ -3869,11 +3910,21 @@ nKai	15000'></textarea>
                     ? `<input type="number" value="${e.quantity}" style="width:80px; padding:6px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff;" onchange="updateEquipQty('${e._id}', this.value)">`
                     : `<span class="${e.quantity < 0 ? 'quantity-negative' : ''}">${e.quantity}</span>`;
                 const lowBadge = low ? '<span class="badge badge-not-member">需補充</span>' : '';
+                const slot = slotOf(e);
+                const overridden = !!e.category;
+                const slotOpts = ['頭', '身體', '鞋子', '武器', '副手', '披風', '其他']
+                    .map(s => `<option value="${s}" ${s === slot ? 'selected' : ''}>${s}</option>`).join('');
+                const slotCell = admin
+                    ? `<select onchange="updateEquipCategory('${e._id}', this.value)" title="${overridden ? '已手動指定' : '自動判斷'}" style="padding:5px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff; ${overridden ? 'outline:1px solid #ffa502;' : ''}">
+                        <option value="">自動(${slot})</option>${slotOpts}
+                       </select>`
+                    : `<span class="badge badge-online">${slot}</span>`;
                 const delBtn = admin
                     ? `<button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteEquip('${e._id}')">刪除</button>`
                     : '';
                 return `<tr style="${rowStyle}">
-                    <td><span class="badge badge-role">${tierLabel(e.tier)}</span> ${escapeHtml(e.name)} ${lowBadge}</td>
+                    <td>${slotCell}</td>
+                    <td>${equipIconImg(e.name, e.tier)}<span class="badge badge-role">${tierLabel(e.tier)}</span> ${escapeHtml(e.name)} ${lowBadge}</td>
                     <td style="text-align:right;">${qtyCell}</td>
                     <td style="text-align:right;">${minCell}</td>
                     <td>${escapeHtml(e.note || '')}</td>
@@ -3885,6 +3936,7 @@ nKai	15000'></textarea>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead><tr>
+                            <th>部位</th>
                             <th>物品</th>
                             <th style="text-align:right;">目前數量</th>
                             <th style="text-align:right;">所需庫存</th>
@@ -3907,6 +3959,23 @@ nKai	15000'></textarea>
                 });
                 const item = equipmentData.find(e => e._id === id);
                 if (item) item.minStock = minStock;
+                saveEquipmentLocal();
+                renderEquipList();
+            } catch (error) {
+                showError('更新失敗：' + error.message);
+            }
+        }
+
+        async function updateEquipCategory(id, value) {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            // 空值代表回到「自動判斷」
+            try {
+                await apiRequest(`/equipment/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ category: value })
+                });
+                const item = equipmentData.find(e => e._id === id);
+                if (item) item.category = value;
                 saveEquipmentLocal();
                 renderEquipList();
             } catch (error) {
@@ -4042,6 +4111,7 @@ nKai	15000'></textarea>
 
         // 戰備庫篩選
         document.getElementById('equipSearch').addEventListener('input', renderEquipList);
+        document.getElementById('equipSlotFilter').addEventListener('change', renderEquipList);
         document.getElementById('equipTierFilter').addEventListener('change', renderEquipList);
         document.getElementById('equipStockFilter').addEventListener('change', renderEquipList);
 
