@@ -10,6 +10,7 @@ const authRouter = require('./routes/auth');
 const membersRouter = require('./routes/members');
 const energyRouter = require('./routes/energy');
 const seasonsRouter = require('./routes/seasons');
+const equipmentRouter = require('./routes/equipment');
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/members', membersRouter);
 app.use('/api/energy', energyRouter);
 app.use('/api/seasons', seasonsRouter);
+app.use('/api/equipment', equipmentRouter);
 
 // 健康檢查端點
 app.get('/health', (req, res) => {
@@ -100,6 +102,7 @@ app.get('/', (req, res) => {
             members: '/api/members',
             energy: '/api/energy',
             seasons: '/api/seasons',
+            equipment: '/api/equipment',
             health: '/health'
         }
     });

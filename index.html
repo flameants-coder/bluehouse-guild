@@ -43,6 +43,7 @@
             <button class="nav-btn" data-page="members">成員名單</button>
             <button class="nav-btn" data-page="powerpoints">力量點統計</button>
             <button class="nav-btn" data-page="lottery">抽獎系統</button>
+            <button class="nav-btn" data-page="equipment">戰備庫</button>
             <button class="nav-btn" data-page="refine">精煉計算器</button>
         </div>
 
@@ -603,6 +604,104 @@ nKai	15000'></textarea>
             </div>
         </div>
 
+        <!-- 戰備庫頁面 -->
+        <div class="page" id="page-equipment">
+            <!-- 匯入帳目 -->
+            <div class="card">
+                <h2>匯入戰備庫帳目</h2>
+                <div class="form-group admin-form">
+                    <label for="equipLogData">貼上帳目紀錄（格式："日期" "玩家" "物品" "附魔" "物品品質" "數量"，正數=存入、負數=提取）</label>
+                    <textarea id="equipLogData" placeholder='範例：
+"07/21/2026 05:47:35"    "guryme"    "宗師級守衛者長靴"    "1"    "3"    "3"
+"07/21/2026 05:52:29"    "flameants"    "大師級聖物"    "0"    "1"    "-37"'></textarea>
+                </div>
+                <div id="equipImportPreview" class="import-preview hidden"></div>
+                <div id="equipImportAlert" class="alert hidden"></div>
+                <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                    <button class="btn" onclick="previewEquipImport()">預覽</button>
+                    <button class="btn btn-success admin-only" onclick="confirmEquipImport()">確認累加匯入</button>
+                    <button class="btn btn-secondary" onclick="clearEquipImport()">清除</button>
+                </div>
+                <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    有效階級 = 基礎階級（老手T4/專家T5/大師T6/宗師T7/禪師T8）+ 附魔等級；品質不列入區分。<br>
+                    匯入為「累加淨值」：每次貼上的數量會加到現有庫存上。
+                </p>
+            </div>
+
+            <!-- 庫存統計 -->
+            <div class="card">
+                <h2>庫存統計</h2>
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="value" id="equipTotalCount">0</div>
+                        <div class="label">庫存項目數</div>
+                    </div>
+                    <div class="stat-item deposit">
+                        <div class="value" id="equipTotalQty">0</div>
+                        <div class="label">總庫存量</div>
+                    </div>
+                    <div class="stat-item warning">
+                        <div class="value" id="equipLowCount">0</div>
+                        <div class="label">低於庫存項目</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 手動新增裝備 -->
+            <div class="card admin-only">
+                <h2>手動新增裝備項目</h2>
+                <div class="admin-form" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                    <div class="form-group" style="margin:0; flex:2; min-width:160px;">
+                        <label for="equipAddName">物品名稱（基礎名）</label>
+                        <input type="text" id="equipAddName" placeholder="例：刺客兜帽">
+                    </div>
+                    <div class="form-group" style="margin:0; flex:1; min-width:90px;">
+                        <label for="equipAddTier">有效階級</label>
+                        <input type="number" id="equipAddTier" placeholder="例：8" min="1" max="20">
+                    </div>
+                    <div class="form-group" style="margin:0; flex:1; min-width:90px;">
+                        <label for="equipAddQty">目前數量</label>
+                        <input type="number" id="equipAddQty" placeholder="0">
+                    </div>
+                    <div class="form-group" style="margin:0; flex:1; min-width:90px;">
+                        <label for="equipAddMin">所需庫存</label>
+                        <input type="number" id="equipAddMin" placeholder="0" min="0">
+                    </div>
+                    <button class="btn btn-success admin-only" onclick="addEquipManual()">新增</button>
+                </div>
+                <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                    階級留空代表「其他（無階級）」。若名稱+階級已存在，將無法重複新增。
+                </p>
+            </div>
+
+            <!-- 庫存列表 -->
+            <div class="card">
+                <h2>戰備庫存</h2>
+                <div class="filters">
+                    <input type="text" id="equipSearch" placeholder="搜尋物品名稱..." class="search-box">
+                    <select id="equipTierFilter">
+                        <option value="">全部階級</option>
+                    </select>
+                    <select id="equipStockFilter">
+                        <option value="">全部庫存</option>
+                        <option value="low">只看低於庫存</option>
+                        <option value="ok">只看庫存充足</option>
+                    </select>
+                </div>
+                <div id="equipListContainer"></div>
+                <div class="no-data" id="noEquipData">尚無裝備庫存資料</div>
+            </div>
+
+            <!-- 資料管理 -->
+            <div class="card">
+                <h2>資料管理</h2>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="syncEquipment()">從伺服器同步</button>
+                    <button class="btn btn-danger admin-only" onclick="clearEquipmentData()">清空所有庫存</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 精煉計算器頁面 -->
         <div class="page" id="page-refine">
             <iframe src="refine.html" title="精煉計算器" style="width:100%;height:calc(100vh - 170px);min-height:600px;border:1px solid #ddd8cc;border-radius:10px;background:#f6f4ee"></iframe>
@@ -794,6 +893,9 @@ nKai	15000'></textarea>
                     form.classList.add('guest-disabled');
                 }
             });
+
+            // 重繪戰備庫（管理控制項依角色顯示）
+            if (typeof renderEquipList === 'function') renderEquipList();
         }
 
         // 驗證 Token 有效性
@@ -3470,6 +3572,9 @@ nKai	15000'></textarea>
                 renderSeasonSelect();
                 renderLotterySeasonSelect();
 
+                // 載入戰備庫並在低庫存時提醒補充
+                syncEquipment(true);
+
                 // 3 秒後隱藏狀態
                 setTimeout(() => {
                     statusDiv.style.transition = 'opacity 0.5s';
@@ -3495,6 +3600,366 @@ nKai	15000'></textarea>
             renderUsageList();
         }
 
+        // ==================== 戰備庫 ====================
+
+        const EQUIP_STORAGE_KEY = 'equipmentInventory';
+        // 階級前綴 → 基礎階級
+        const TIER_PREFIX = { '老手': 4, '專家': 5, '大師': 6, '宗師': 7, '禪師': 8 };
+
+        let equipmentData = []; // 伺服器庫存資料快取
+
+        function getEquipment() {
+            if (equipmentData.length > 0) return equipmentData;
+            try {
+                const cached = JSON.parse(localStorage.getItem(EQUIP_STORAGE_KEY) || '[]');
+                if (Array.isArray(cached)) equipmentData = cached;
+            } catch (e) { /* ignore */ }
+            return equipmentData;
+        }
+
+        function saveEquipmentLocal() {
+            localStorage.setItem(EQUIP_STORAGE_KEY, JSON.stringify(equipmentData));
+        }
+
+        // 有效階級對應的顯示標籤
+        function tierLabel(tier) {
+            return (tier === null || tier === undefined) ? '其他' : `T${tier}`;
+        }
+
+        // 解析帳目紀錄文字，聚合為 { name, tier, delta } 的淨值陣列
+        // 回傳 { items, lineCount, skipped }
+        function parseEquipLog(text) {
+            const lines = text.split('\n');
+            const map = new Map(); // key -> { name, tier, delta }
+            let lineCount = 0;
+            let skipped = 0;
+
+            for (const raw of lines) {
+                const line = raw.trim();
+                if (!line) continue;
+                // 取出所有雙引號內的值
+                const matches = [...line.matchAll(/"([^"]*)"/g)].map(m => m[1]);
+                if (matches.length < 6) { skipped++; continue; }
+
+                const item = matches[2].trim();
+                const enchant = parseInt(matches[3]);
+                const qty = parseInt(matches[5]);
+
+                // 數量或附魔非數字（含標題列）則跳過
+                if (isNaN(qty) || isNaN(enchant)) { skipped++; continue; }
+
+                // 剝除階級前綴，計算有效階級
+                let baseName = item;
+                let tier = null;
+                const pm = item.match(/^(老手|專家|大師|宗師|禪師)級(.+)$/);
+                if (pm) {
+                    baseName = pm[2].trim();
+                    tier = TIER_PREFIX[pm[1]] + enchant;
+                }
+
+                const key = `${baseName}|${tier === null ? 'none' : tier}`;
+                if (!map.has(key)) {
+                    map.set(key, { name: baseName, tier, delta: 0 });
+                }
+                map.get(key).delta += qty;
+                lineCount++;
+            }
+
+            return { items: [...map.values()], lineCount, skipped };
+        }
+
+        let pendingEquipImport = [];
+
+        function previewEquipImport() {
+            const text = document.getElementById('equipLogData').value;
+            const alertEl = document.getElementById('equipImportAlert');
+            const previewEl = document.getElementById('equipImportPreview');
+
+            if (!text.trim()) {
+                showAlert(alertEl, '請先貼上帳目紀錄', 'error');
+                previewEl.classList.add('hidden');
+                return;
+            }
+
+            const { items, lineCount, skipped } = parseEquipLog(text);
+            if (items.length === 0) {
+                showAlert(alertEl, '沒有解析到有效的資料列', 'error');
+                previewEl.classList.add('hidden');
+                return;
+            }
+
+            pendingEquipImport = items;
+            alertEl.classList.add('hidden');
+
+            // 依有效階級排序
+            const sorted = [...items].sort((a, b) => {
+                const ta = a.tier === null ? 999 : a.tier;
+                const tb = b.tier === null ? 999 : b.tier;
+                if (ta !== tb) return ta - tb;
+                return a.name.localeCompare(b.name);
+            });
+
+            const rows = sorted.map(it => {
+                const cls = it.delta >= 0 ? 'quantity-positive' : 'quantity-negative';
+                const sign = it.delta > 0 ? '+' : '';
+                return `<tr>
+                    <td><span class="badge badge-role">${tierLabel(it.tier)}</span> ${escapeHtml(it.name)}</td>
+                    <td class="${cls}" style="text-align:right;">${sign}${it.delta}</td>
+                </tr>`;
+            }).join('');
+
+            previewEl.innerHTML = `
+                <p style="margin-bottom:10px;">解析 ${lineCount} 列，聚合為 <strong>${items.length}</strong> 項裝備${skipped ? `（略過 ${skipped} 列）` : ''}。以下為將累加的淨值：</p>
+                <div style="max-height:300px; overflow-y:auto;">
+                    <table>
+                        <thead><tr><th>物品</th><th style="text-align:right;">淨值</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+            previewEl.classList.remove('hidden');
+        }
+
+        async function confirmEquipImport() {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            if (pendingEquipImport.length === 0) {
+                showWarning('請先按「預覽」確認要匯入的資料');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                await apiRequest('/equipment/adjust', {
+                    method: 'POST',
+                    body: JSON.stringify({ items: pendingEquipImport })
+                });
+                await syncEquipment(true);
+                clearEquipImport();
+                showSuccess('已累加匯入庫存');
+            } catch (error) {
+                showError('匯入失敗：' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function clearEquipImport() {
+            document.getElementById('equipLogData').value = '';
+            document.getElementById('equipImportPreview').classList.add('hidden');
+            document.getElementById('equipImportAlert').classList.add('hidden');
+            pendingEquipImport = [];
+        }
+
+        async function addEquipManual() {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            const name = document.getElementById('equipAddName').value.trim();
+            const tierRaw = document.getElementById('equipAddTier').value.trim();
+            const qtyRaw = document.getElementById('equipAddQty').value.trim();
+            const minRaw = document.getElementById('equipAddMin').value.trim();
+
+            if (!name) { showWarning('請輸入物品名稱'); return; }
+
+            const payload = {
+                name,
+                tier: tierRaw === '' ? null : parseInt(tierRaw),
+                quantity: qtyRaw === '' ? 0 : parseInt(qtyRaw),
+                minStock: minRaw === '' ? 0 : parseInt(minRaw)
+            };
+
+            try {
+                await apiRequest('/equipment', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                document.getElementById('equipAddName').value = '';
+                document.getElementById('equipAddTier').value = '';
+                document.getElementById('equipAddQty').value = '';
+                document.getElementById('equipAddMin').value = '';
+                await syncEquipment(true);
+                showSuccess('已新增裝備項目');
+            } catch (error) {
+                showError('新增失敗：' + error.message);
+            }
+        }
+
+        // 從伺服器同步庫存
+        async function syncEquipment(silent = false) {
+            try {
+                const data = await apiRequest('/equipment', { method: 'GET' });
+                equipmentData = Array.isArray(data) ? data : [];
+                saveEquipmentLocal();
+                renderEquipList();
+                if (!silent) showSuccess('庫存已同步');
+                notifyLowStock();
+            } catch (error) {
+                if (!silent) showError('同步失敗：' + error.message);
+                // 失敗時使用本地快取
+                getEquipment();
+                renderEquipList();
+            }
+        }
+
+        // 低庫存提醒
+        function notifyLowStock() {
+            const low = getEquipment().filter(e => e.minStock > 0 && e.quantity < e.minStock);
+            if (low.length > 0) {
+                showWarning(`有 ${low.length} 項裝備低於所需庫存，請補充！`, 6000);
+            }
+        }
+
+        function renderEquipList() {
+            const list = getEquipment();
+            const container = document.getElementById('equipListContainer');
+            const noData = document.getElementById('noEquipData');
+            const search = document.getElementById('equipSearch').value.toLowerCase();
+            const tierFilter = document.getElementById('equipTierFilter').value;
+            const stockFilter = document.getElementById('equipStockFilter').value;
+
+            // 更新階級篩選器選項
+            const tiers = [...new Set(list.map(e => e.tier === null ? 'none' : e.tier))]
+                .sort((a, b) => (a === 'none' ? 999 : a) - (b === 'none' ? 999 : b));
+            const tierSelect = document.getElementById('equipTierFilter');
+            const currentTier = tierSelect.value;
+            tierSelect.innerHTML = '<option value="">全部階級</option>' +
+                tiers.map(t => `<option value="${t}">${t === 'none' ? '其他' : 'T' + t}</option>`).join('');
+            tierSelect.value = currentTier;
+
+            const isLow = (e) => e.minStock > 0 && e.quantity < e.minStock;
+
+            // 統計（未套用篩選）
+            document.getElementById('equipTotalCount').textContent = list.length;
+            document.getElementById('equipTotalQty').textContent = list.reduce((s, e) => s + (e.quantity || 0), 0);
+            document.getElementById('equipLowCount').textContent = list.filter(isLow).length;
+
+            // 篩選
+            let filtered = list.filter(e => {
+                if (search && !e.name.toLowerCase().includes(search)) return false;
+                if (tierFilter) {
+                    const t = e.tier === null ? 'none' : String(e.tier);
+                    if (t !== tierFilter) return false;
+                }
+                if (stockFilter === 'low' && !isLow(e)) return false;
+                if (stockFilter === 'ok' && isLow(e)) return false;
+                return true;
+            });
+
+            // 排序：低庫存優先，其次階級、名稱
+            filtered.sort((a, b) => {
+                if (isLow(a) !== isLow(b)) return isLow(a) ? -1 : 1;
+                const ta = a.tier === null ? 999 : a.tier;
+                const tb = b.tier === null ? 999 : b.tier;
+                if (ta !== tb) return ta - tb;
+                return a.name.localeCompare(b.name);
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                noData.style.display = 'block';
+                return;
+            }
+            noData.style.display = 'none';
+
+            const admin = isAdmin();
+            const rows = filtered.map(e => {
+                const low = isLow(e);
+                const rowStyle = low ? 'background: rgba(255,71,87,0.12);' : '';
+                const minCell = admin
+                    ? `<input type="number" min="0" value="${e.minStock}" style="width:70px; padding:6px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff;" onchange="updateEquipMinStock('${e._id}', this.value)">`
+                    : `${e.minStock}`;
+                const qtyCell = admin
+                    ? `<input type="number" value="${e.quantity}" style="width:80px; padding:6px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff;" onchange="updateEquipQty('${e._id}', this.value)">`
+                    : `<span class="${e.quantity < 0 ? 'quantity-negative' : ''}">${e.quantity}</span>`;
+                const lowBadge = low ? '<span class="badge badge-not-member">需補充</span>' : '';
+                const delBtn = admin
+                    ? `<button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteEquip('${e._id}')">刪除</button>`
+                    : '';
+                return `<tr style="${rowStyle}">
+                    <td><span class="badge badge-role">${tierLabel(e.tier)}</span> ${escapeHtml(e.name)} ${lowBadge}</td>
+                    <td style="text-align:right;">${qtyCell}</td>
+                    <td style="text-align:right;">${minCell}</td>
+                    <td>${escapeHtml(e.note || '')}</td>
+                    <td style="text-align:right;">${delBtn}</td>
+                </tr>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr>
+                            <th>物品</th>
+                            <th style="text-align:right;">目前數量</th>
+                            <th style="text-align:right;">所需庫存</th>
+                            <th>備註</th>
+                            <th></th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        async function updateEquipMinStock(id, value) {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            const minStock = parseInt(value);
+            if (isNaN(minStock) || minStock < 0) { showWarning('請輸入有效的數量'); return; }
+            try {
+                await apiRequest(`/equipment/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ minStock })
+                });
+                const item = equipmentData.find(e => e._id === id);
+                if (item) item.minStock = minStock;
+                saveEquipmentLocal();
+                renderEquipList();
+            } catch (error) {
+                showError('更新失敗：' + error.message);
+            }
+        }
+
+        async function updateEquipQty(id, value) {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            const quantity = parseInt(value);
+            if (isNaN(quantity)) { showWarning('請輸入有效的數量'); return; }
+            try {
+                await apiRequest(`/equipment/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ quantity })
+                });
+                const item = equipmentData.find(e => e._id === id);
+                if (item) item.quantity = quantity;
+                saveEquipmentLocal();
+                renderEquipList();
+            } catch (error) {
+                showError('更新失敗：' + error.message);
+            }
+        }
+
+        async function deleteEquip(id) {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            if (!confirm('確定要刪除這項裝備庫存嗎？')) return;
+            try {
+                await apiRequest(`/equipment/${id}`, { method: 'DELETE' });
+                equipmentData = equipmentData.filter(e => e._id !== id);
+                saveEquipmentLocal();
+                renderEquipList();
+            } catch (error) {
+                showError('刪除失敗：' + error.message);
+            }
+        }
+
+        async function clearEquipmentData() {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            if (!confirm('確定要清空所有裝備庫存嗎？\n\n⚠️ 此操作無法復原！')) return;
+            if (!confirm('再次確認：真的要清空全部庫存嗎？')) return;
+            try {
+                await apiRequest('/equipment', { method: 'DELETE' });
+                equipmentData = [];
+                saveEquipmentLocal();
+                renderEquipList();
+                showSuccess('已清空所有庫存');
+            } catch (error) {
+                showError('清空失敗：' + error.message);
+            }
+        }
+
         // ==================== 事件綁定 ====================
 
         // 主導航
@@ -3509,6 +3974,8 @@ nKai	15000'></textarea>
                     renderMemberList();
                 } else if (btn.dataset.page === 'lottery') {
                     renderLotterySeasonSelect();
+                } else if (btn.dataset.page === 'equipment') {
+                    syncEquipment(true);
                 }
             });
         });
@@ -3572,6 +4039,11 @@ nKai	15000'></textarea>
         document.getElementById('memberSearch').addEventListener('input', renderMemberList);
         document.getElementById('memberListFilter').addEventListener('change', renderMemberList);
         document.getElementById('roleFilter').addEventListener('change', renderMemberList);
+
+        // 戰備庫篩選
+        document.getElementById('equipSearch').addEventListener('input', renderEquipList);
+        document.getElementById('equipTierFilter').addEventListener('change', renderEquipList);
+        document.getElementById('equipStockFilter').addEventListener('change', renderEquipList);
 
         // 力量點活動 Tab 切換
         document.querySelectorAll('.pp-tab').forEach(tab => {

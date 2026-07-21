@@ -102,6 +102,16 @@ https://bluehouse-guild-api.onrender.com/api
 | POST | `/:id/lottery/draw` | 記錄抽獎結果 | 管理員 |
 | DELETE | `/:id/lottery/history` | 清除抽獎記錄 | 管理員 |
 
+### 戰備庫 `/api/equipment`
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| GET | `/` | 取得所有裝備庫存 (可依 tier/search 篩選) | 公開 |
+| POST | `/` | 手動新增裝備項目 | 管理員 |
+| PUT | `/:id` | 更新單一裝備 (數量/所需庫存/備註) | 管理員 |
+| POST | `/adjust` | 累加匯入 (依 name+tier 對數量做 $inc) | 管理員 |
+| DELETE | `/:id` | 刪除裝備 | 管理員 |
+| DELETE | `/` | 清空所有庫存 | 管理員 |
+
 ## 資料模型
 
 ### Member (成員)
@@ -142,6 +152,18 @@ https://bluehouse-guild-api.onrender.com/api
   },
   createdAt: Date
 }
+```
+
+### Equipment (戰備庫庫存)
+```javascript
+{
+  name: String,        // 物品基礎名 (已剝除階級前綴)
+  tier: Number,        // 有效階級 = 基礎階級(老手T4/專家T5/大師T6/宗師T7/禪師T8) + 附魔; null = 其他
+  quantity: Number,    // 目前庫存 (累加淨值, 可為負)
+  minStock: Number,    // 所需庫存量 (低於此值視為需補充)
+  note: String         // 備註
+}
+// 唯一鍵: name + tier；品質不列入區分
 ```
 
 ### User (使用者)
