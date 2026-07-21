@@ -703,6 +703,20 @@ nKai	15000'></textarea>
                 <div class="no-data" id="noEquipData">尚無裝備庫存資料</div>
             </div>
 
+            <!-- 補貨清單（差額） -->
+            <div class="card">
+                <h2>補貨清單（差額）</h2>
+                <p style="color:#888; font-size:0.9em; margin-top:-5px; margin-bottom:12px;">
+                    列出低於所需庫存的裝備，差額 = 所需庫存 − 目前數量。
+                </p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                    <button class="btn" onclick="copyShortfall()">複製清單</button>
+                    <button class="btn btn-secondary" onclick="downloadShortfallCSV()">下載 CSV</button>
+                </div>
+                <div id="equipShortfallContainer"></div>
+                <div class="no-data" id="noShortfallData">目前所有裝備庫存都足夠 🎉</div>
+            </div>
+
             <!-- 資料管理 -->
             <div class="card">
                 <h2>資料管理</h2>
@@ -3637,6 +3651,11 @@ nKai	15000'></textarea>
             return (tier === null || tier === undefined) ? '其他' : `T${tier}`;
         }
 
+        // 部位：優先用手動覆寫，否則依名稱自動判斷
+        function equipSlotOf(e) {
+            return e.category || (typeof classifyEquipSlot === 'function' ? classifyEquipSlot(e.name) : '其他');
+        }
+
         // 依物品名與有效階級組出 Albion 官方圖示網址（查無回 null）
         function equipIconUrl(name, tier) {
             const base = (typeof equipItemBaseId === 'function') ? equipItemBaseId(name) : null;
@@ -3858,8 +3877,7 @@ nKai	15000'></textarea>
             tierSelect.value = currentTier;
 
             const isLow = (e) => e.minStock > 0 && e.quantity < e.minStock;
-            // 部位：優先用手動覆寫，否則依名稱自動判斷
-            const slotOf = (e) => e.category || (typeof classifyEquipSlot === 'function' ? classifyEquipSlot(e.name) : '其他');
+            const slotOf = equipSlotOf;
 
             // 統計（未套用篩選）
             document.getElementById('equipTotalCount').textContent = list.length;
@@ -3946,6 +3964,116 @@ nKai	15000'></textarea>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>`;
+
+            renderEquipShortfall();
+        }
+
+        // 取得補貨清單（低於所需庫存的裝備，含差額）
+        function getShortfallItems() {
+            const SLOT_ORDER = { '頭': 0, '身體': 1, '鞋子': 2, '武器': 3, '副手': 4, '披風': 5, '其他': 6 };
+            return getEquipment()
+                .filter(e => e.minStock > 0 && e.quantity < e.minStock)
+                .map(e => ({
+                    slot: equipSlotOf(e),
+                    tier: e.tier,
+                    name: e.name,
+                    quantity: e.quantity,
+                    minStock: e.minStock,
+                    diff: e.minStock - e.quantity
+                }))
+                .sort((a, b) => {
+                    const sa = SLOT_ORDER[a.slot] ?? 9, sb = SLOT_ORDER[b.slot] ?? 9;
+                    if (sa !== sb) return sa - sb;
+                    if (b.diff !== a.diff) return b.diff - a.diff;
+                    return a.name.localeCompare(b.name);
+                });
+        }
+
+        function renderEquipShortfall() {
+            const container = document.getElementById('equipShortfallContainer');
+            const noData = document.getElementById('noShortfallData');
+            if (!container) return;
+            const items = getShortfallItems();
+
+            if (items.length === 0) {
+                container.innerHTML = '';
+                noData.style.display = 'block';
+                return;
+            }
+            noData.style.display = 'none';
+
+            const totalDiff = items.reduce((s, it) => s + it.diff, 0);
+            const rows = items.map(it => `
+                <tr>
+                    <td><span class="badge badge-online">${it.slot}</span></td>
+                    <td>${equipIconImg(it.name, it.tier)}<span class="badge badge-role">${tierLabel(it.tier)}</span> ${escapeHtml(it.name)}</td>
+                    <td style="text-align:right;">${it.quantity}</td>
+                    <td style="text-align:right;">${it.minStock}</td>
+                    <td style="text-align:right;" class="quantity-negative"><strong>${it.diff}</strong></td>
+                </tr>`).join('');
+
+            container.innerHTML = `
+                <p style="margin-bottom:10px;">共 <strong>${items.length}</strong> 項需補貨，總差額 <strong class="quantity-negative">${totalDiff}</strong> 件。</p>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr>
+                            <th>部位</th>
+                            <th>物品</th>
+                            <th style="text-align:right;">目前</th>
+                            <th style="text-align:right;">所需</th>
+                            <th style="text-align:right;">差額</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        // 產生補貨清單純文字（供複製）
+        function buildShortfallText() {
+            const items = getShortfallItems();
+            const lines = items.map(it =>
+                `[${it.slot}] ${tierLabel(it.tier)} ${it.name}　目前 ${it.quantity} / 需求 ${it.minStock} → 補 ${it.diff}`
+            );
+            return `補貨清單（差額）\n${lines.join('\n')}`;
+        }
+
+        async function copyShortfall() {
+            const items = getShortfallItems();
+            if (items.length === 0) { showInfo('目前沒有需要補貨的裝備'); return; }
+            const text = buildShortfallText();
+            try {
+                await navigator.clipboard.writeText(text);
+                showSuccess(`已複製 ${items.length} 項補貨清單`);
+            } catch (e) {
+                // clipboard API 不可用時退回選取提示
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); showSuccess(`已複製 ${items.length} 項補貨清單`); }
+                catch (e2) { showError('複製失敗，請手動複製'); }
+                ta.remove();
+            }
+        }
+
+        function downloadShortfallCSV() {
+            const items = getShortfallItems();
+            if (items.length === 0) { showInfo('目前沒有需要補貨的裝備'); return; }
+            const header = '部位,物品,階級,目前,所需,差額';
+            const rows = items.map(it =>
+                [it.slot, `"${it.name.replace(/"/g, '""')}"`, tierLabel(it.tier), it.quantity, it.minStock, it.diff].join(',')
+            );
+            // 加 BOM 讓 Excel 正確辨識 UTF-8
+            const csv = '﻿' + [header, ...rows].join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '補貨清單.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
         }
 
         async function updateEquipMinStock(id, value) {
