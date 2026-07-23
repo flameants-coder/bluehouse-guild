@@ -3993,12 +3993,14 @@ nKai	15000'></textarea>
             return getEquipment()
                 .filter(e => e.minStock > 0 && e.quantity < e.minStock)
                 .map(e => ({
+                    _id: e._id,
                     slot: equipSlotOf(e),
                     tier: e.tier,
                     name: e.name,
                     quantity: e.quantity,
                     minStock: e.minStock,
-                    diff: e.minStock - e.quantity
+                    diff: e.minStock - e.quantity,
+                    assignee: e.assignee || ''
                 }))
                 .sort((a, b) => {
                     const sa = SLOT_ORDER[a.slot] ?? 9, sb = SLOT_ORDER[b.slot] ?? 9;
@@ -4021,15 +4023,22 @@ nKai	15000'></textarea>
             }
             noData.style.display = 'none';
 
+            const admin = isAdmin();
             const totalDiff = items.reduce((s, it) => s + it.diff, 0);
-            const rows = items.map(it => `
+            const rows = items.map(it => {
+                const assigneeCell = admin
+                    ? `<input type="text" value="${escapeHtml(it.assignee)}" placeholder="填入接單人" maxlength="40" style="width:120px; padding:6px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff;" onchange="updateEquipAssignee('${it._id}', this.value)">`
+                    : (it.assignee ? escapeHtml(it.assignee) : '<span style="opacity:.5;">—</span>');
+                return `
                 <tr>
                     <td><span class="badge badge-online">${it.slot}</span></td>
                     <td>${equipIconImg(it.name, it.tier)}<span class="badge badge-role">${tierLabel(it.tier)}</span> ${escapeHtml(it.name)}</td>
                     <td style="text-align:right;">${it.quantity}</td>
                     <td style="text-align:right;">${it.minStock}</td>
                     <td style="text-align:right;" class="quantity-negative"><strong>${it.diff}</strong></td>
-                </tr>`).join('');
+                    <td>${assigneeCell}</td>
+                </tr>`;
+            }).join('');
 
             container.innerHTML = `
                 <p style="margin-bottom:10px;">共 <strong>${items.length}</strong> 項需補貨，總差額 <strong class="quantity-negative">${totalDiff}</strong> 件。</p>
@@ -4041,6 +4050,7 @@ nKai	15000'></textarea>
                             <th style="text-align:right;">目前</th>
                             <th style="text-align:right;">所需</th>
                             <th style="text-align:right;">差額</th>
+                            <th>接單人</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -4051,7 +4061,7 @@ nKai	15000'></textarea>
         function buildShortfallText() {
             const items = getShortfallItems();
             const lines = items.map(it =>
-                `[${it.slot}] ${tierLabel(it.tier)} ${it.name}　目前 ${it.quantity} / 需求 ${it.minStock} → 補 ${it.diff}`
+                `[${it.slot}] ${tierLabel(it.tier)} ${it.name}　目前 ${it.quantity} / 需求 ${it.minStock} → 補 ${it.diff}${it.assignee ? `　接單：${it.assignee}` : ''}`
             );
             return `補貨清單（差額）\n${lines.join('\n')}`;
         }
@@ -4078,9 +4088,9 @@ nKai	15000'></textarea>
         function downloadShortfallCSV() {
             const items = getShortfallItems();
             if (items.length === 0) { showInfo('目前沒有需要補貨的裝備'); return; }
-            const header = '部位,物品,階級,目前,所需,差額';
+            const header = '部位,物品,階級,目前,所需,差額,接單人';
             const rows = items.map(it =>
-                [it.slot, `"${it.name.replace(/"/g, '""')}"`, tierLabel(it.tier), it.quantity, it.minStock, it.diff].join(',')
+                [it.slot, `"${it.name.replace(/"/g, '""')}"`, tierLabel(it.tier), it.quantity, it.minStock, it.diff, `"${(it.assignee || '').replace(/"/g, '""')}"`].join(',')
             );
             // 加 BOM 讓 Excel 正確辨識 UTF-8
             const csv = '﻿' + [header, ...rows].join('\r\n');
@@ -4283,6 +4293,23 @@ nKai	15000'></textarea>
                 if (item) item.category = value;
                 saveEquipmentLocal();
                 renderEquipList();
+            } catch (error) {
+                showError('更新失敗：' + error.message);
+            }
+        }
+
+        async function updateEquipAssignee(id, value) {
+            if (!isAdmin()) { showWarning('此操作需要管理員權限'); return; }
+            const assignee = (value || '').trim();
+            try {
+                await apiRequest(`/equipment/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ assignee })
+                });
+                const item = equipmentData.find(e => e._id === id);
+                if (item) item.assignee = assignee;
+                saveEquipmentLocal();
+                renderEquipShortfall();
             } catch (error) {
                 showError('更新失敗：' + error.message);
             }

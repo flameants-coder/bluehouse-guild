@@ -39,6 +39,13 @@ const equipmentSchema = new mongoose.Schema({
         trim: true,
         default: '',
         enum: ['', '頭', '身體', '鞋子', '武器', '副手', '披風', '其他']
+    },
+    // 補貨接單人（由誰負責補這項庫存）；空字串代表尚未指派
+    assignee: {
+        type: String,
+        trim: true,
+        default: '',
+        maxlength: [40, '接單人不可超過 40 個字元']
     }
 }, {
     timestamps: true
