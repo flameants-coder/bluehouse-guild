@@ -717,6 +717,25 @@ nKai	15000'></textarea>
                 <div class="no-data" id="noShortfallData">目前所有裝備庫存都足夠 🎉</div>
             </div>
 
+            <!-- 補貨預算估算（市價） -->
+            <div class="card">
+                <h2>補貨預算估算（市價）</h2>
+                <p style="color:#888; font-size:0.9em; margin-top:-5px; margin-bottom:12px;">
+                    依補貨差額 × <strong>同強度最省變體</strong>的即時市價估算總花費（平8＝T4.4/T5.3/T6.2/T7.1/T8.0 取最低，平9 同理）。資料來源：Albion Online Data Project。
+                </p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+                    <select id="budgetServer">
+                        <option value="east">亞洲伺服器</option>
+                        <option value="europe">歐洲伺服器</option>
+                        <option value="west">美洲伺服器</option>
+                    </select>
+                    <button class="btn" onclick="estimateEquipBudget()">估算市價</button>
+                    <button class="btn btn-secondary" onclick="downloadBudgetCSV()">下載 CSV</button>
+                </div>
+                <div id="equipBudgetContainer"></div>
+                <div class="no-data" id="noBudgetData">選擇伺服器後按「估算市價」計算補貨預算</div>
+            </div>
+
             <!-- 資料管理 -->
             <div class="card">
                 <h2>資料管理</h2>
@@ -4070,6 +4089,164 @@ nKai	15000'></textarea>
             const a = document.createElement('a');
             a.href = url;
             a.download = '補貨清單.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // ========== 補貨預算估算（市價） ==========
+        const BUDGET_CITIES = 'Caerleon,Martlock,Bridgewatch,Lymhurst,FortSterling,Thetford,Brecilien';
+        const BUDGET_SERVER_NAME = { east: '亞洲', europe: '歐洲', west: '美洲' };
+        let budgetResult = null;
+
+        // 由有效階級(平N)產生同強度的等價變體：平8 = T4.4/T5.3/T6.2/T7.1/T8.0，取最省
+        function equipEquivIds(name, tier) {
+            const base = (typeof equipItemBaseId === 'function') ? equipItemBaseId(name) : null;
+            if (!base || !tier) return [];
+            const stripped = base.replace(/^T\d+_/, '');
+            const out = [];
+            for (let b = Math.max(4, tier - 4); b <= Math.min(8, tier); b++) {
+                const ench = tier - b;
+                if (ench < 0 || ench > 4) continue;
+                out.push({ id: `T${b}_${stripped}` + (ench > 0 ? '@' + ench : ''), label: `T${b}.${ench}` });
+            }
+            return out;
+        }
+
+        // 抓某伺服器的即時最低賣價（回傳 id -> 最低 sell_price_min）
+        async function fetchServerPrices(server, ids) {
+            const map = {};
+            const CHUNK = 80;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const chunk = ids.slice(i, i + CHUNK).join(',');
+                const url = `https://${server}.albion-online-data.com/api/v2/stats/prices/${chunk}?qualities=1,2,3&locations=${BUDGET_CITIES}`;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    for (const x of data) {
+                        const p = x.sell_price_min || 0;
+                        if (p > 0) {
+                            const k = x.item_id;
+                            map[k] = Math.min(map[k] ?? Infinity, p);
+                        }
+                    }
+                } catch (e) { /* 略過此批 */ }
+            }
+            return map;
+        }
+
+        async function estimateEquipBudget() {
+            const container = document.getElementById('equipBudgetContainer');
+            const noData = document.getElementById('noBudgetData');
+            const primary = document.getElementById('budgetServer').value;
+
+            const items = getShortfallItems()
+                .filter(it => it.diff > 0)
+                .map(it => ({ ...it, variants: equipEquivIds(it.name, it.tier) }));
+
+            if (items.length === 0) {
+                noData.style.display = 'block';
+                noData.textContent = '目前沒有需要補貨的裝備 🎉';
+                container.innerHTML = '';
+                return;
+            }
+
+            noData.style.display = 'none';
+            container.innerHTML = `<p style="color:#aaa;">正在抓取 ${BUDGET_SERVER_NAME[primary]}伺服器市價…</p>`;
+
+            const idset = new Set();
+            items.forEach(it => it.variants.forEach(v => idset.add(v.id)));
+            const ids = [...idset];
+
+            // 主伺服器優先，缺價再往其他伺服器補
+            const order = [primary, ...['east', 'europe', 'west'].filter(s => s !== primary)];
+            const priceByServer = {};
+            for (const s of order) priceByServer[s] = await fetchServerPrices(s, ids);
+
+            const rows = [];
+            let total = 0;
+            const noPrice = [];
+            for (const it of items) {
+                let best = null;
+                for (const s of order) {
+                    const pm = priceByServer[s];
+                    for (const v of it.variants) {
+                        const p = pm[v.id];
+                        if (p != null && (best == null || p < best.price)) best = { price: p, variant: v.label, server: s };
+                    }
+                    if (best) break; // 該伺服器有價就採用（主服優先）
+                }
+                if (!best) { noPrice.push(it); continue; }
+                const sub = best.price * it.diff;
+                total += sub;
+                rows.push({ slot: it.slot, name: it.name, tier: it.tier, diff: it.diff, price: best.price, variant: best.variant, server: best.server, sub });
+            }
+            rows.sort((a, b) => b.sub - a.sub);
+            budgetResult = { rows, total, noPrice, primary };
+            renderEquipBudget();
+        }
+
+        function renderEquipBudget() {
+            const container = document.getElementById('equipBudgetContainer');
+            if (!budgetResult) return;
+            const { rows, total, noPrice, primary } = budgetResult;
+
+            const body = rows.map(r => {
+                const srcTag = r.server !== primary
+                    ? ` <span class="badge badge-role" title="主伺服器查無、改用此服">${BUDGET_SERVER_NAME[r.server]}</span>`
+                    : '';
+                return `
+                <tr>
+                    <td><span class="badge badge-online">${r.slot}</span></td>
+                    <td>${equipIconImg(r.name, r.tier)}<span class="badge badge-role">${tierLabel(r.tier)}</span> ${escapeHtml(r.name)}</td>
+                    <td style="text-align:right;">${r.diff}</td>
+                    <td style="text-align:center;"><span class="badge badge-role">${r.variant}</span>${srcTag}</td>
+                    <td style="text-align:right;">${r.price.toLocaleString()}</td>
+                    <td style="text-align:right;"><strong>${r.sub.toLocaleString()}</strong></td>
+                </tr>`;
+            }).join('');
+
+            const noPriceHtml = noPrice.length
+                ? `<p style="color:#e0a030; margin-top:10px;">⚠️ 查無市價 ${noPrice.length} 項（未計入）：${noPrice.map(it => escapeHtml(it.name)).join('、')}</p>`
+                : '';
+
+            container.innerHTML = `
+                <p style="margin-bottom:10px;">
+                    共 <strong>${rows.length}</strong> 項可估價，補貨總估價
+                    <strong class="quantity-positive">${total.toLocaleString()}</strong> 銀幣
+                    （≈ <strong>${(total / 1e6).toFixed(1)} M</strong>）。
+                </p>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead><tr>
+                            <th>部位</th>
+                            <th>物品</th>
+                            <th style="text-align:right;">差額</th>
+                            <th style="text-align:center;">最省買法</th>
+                            <th style="text-align:right;">單價</th>
+                            <th style="text-align:right;">小計</th>
+                        </tr></thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+                ${noPriceHtml}`;
+        }
+
+        function downloadBudgetCSV() {
+            if (!budgetResult || budgetResult.rows.length === 0) { showInfo('請先按「估算市價」'); return; }
+            const header = '部位,物品,階級,差額,最省買法,單價,小計';
+            const rows = budgetResult.rows.map(r =>
+                [r.slot, `"${r.name.replace(/"/g, '""')}"`, tierLabel(r.tier), r.diff, r.variant, r.price, r.sub].join(',')
+            );
+            rows.push(['總計', '', '', '', '', '', budgetResult.total].join(','));
+            const csv = '﻿' + [header, ...rows].join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '補貨預算.csv';
             document.body.appendChild(a);
             a.click();
             a.remove();
