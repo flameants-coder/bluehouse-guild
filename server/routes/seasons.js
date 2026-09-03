@@ -31,6 +31,7 @@ router.post('/', adminOnly, async (req, res) => {
     try {
         const season = new Season({
             name: req.body.name,
+            activityConfig: req.body.activityConfig,
             scores: {
                 hideoutCore: [],
                 crystalSpider: [],
@@ -60,6 +61,21 @@ router.delete('/:id', adminOnly, async (req, res) => {
         res.json({ message: '賽季已刪除' });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+});
+
+// 更新賽季活動設定 (活動名稱 + 抽獎券規則) (需管理員權限)
+router.put('/:id/activity-config', adminOnly, async (req, res) => {
+    try {
+        const season = await Season.findById(req.params.id);
+        if (!season) {
+            return res.status(404).json({ message: '找不到該賽季' });
+        }
+        season.activityConfig = req.body.activityConfig;
+        await season.save();
+        res.json(season);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
     }
 });
 

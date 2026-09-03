@@ -374,19 +374,19 @@ nKai	15000'></textarea>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 20px;">
                     <div class="stat-item">
                         <div class="value" id="ppHideoutCoreTotal">0</div>
-                        <div class="label">藏身地堡核心</div>
+                        <div class="label" id="ppLabelHideoutCore">藏身地堡核心</div>
                     </div>
                     <div class="stat-item">
                         <div class="value" id="ppCrystalSpiderTotal">0</div>
-                        <div class="label">水晶蜘蛛</div>
+                        <div class="label" id="ppLabelCrystalSpider">水晶蜘蛛</div>
                     </div>
                     <div class="stat-item">
                         <div class="value" id="ppHellGateTotal">0</div>
-                        <div class="label">煉獄之門</div>
+                        <div class="label" id="ppLabelHellGate">煉獄之門</div>
                     </div>
                     <div class="stat-item">
                         <div class="value" id="ppBottomlessAbyssTotal">0</div>
-                        <div class="label">無底深淵</div>
+                        <div class="label" id="ppLabelBottomlessAbyss">無底深淵</div>
                     </div>
                 </div>
             </div>
@@ -399,25 +399,9 @@ nKai	15000'></textarea>
                         <div class="value" style="color: #ffd700;" id="totalLotteryTickets">0</div>
                         <div class="label">總抽獎券數</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="value" id="lotteryFromHideout">0</div>
-                        <div class="label">藏身地堡核心</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="value" id="lotteryFromSpider">0</div>
-                        <div class="label">水晶蜘蛛</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="value" id="lotteryFromCombined">0</div>
-                        <div class="label">煉獄+深淵</div>
-                    </div>
                 </div>
-                <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.9em; color: #aaa;">
-                    <strong>抽獎券規則：</strong><br>
-                    • 藏身地堡核心：達 600,000 分得 1 張，之後每 400,000 分額外 1 張<br>
-                    • 水晶蜘蛛：達 30,000 分得 1 張，之後每 15,000 分額外 1 張<br>
-                    • 煉獄之門 + 無底深淵（合併）：達 20,000 分得 1 張，之後每 15,000 分額外 1 張
-                </div>
+                <div class="stats" id="lotteryBreakdown"></div>
+                <div id="lotteryRules" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.9em; color: #aaa;"></div>
             </div>
 
             <!-- 排行榜 -->
@@ -437,10 +421,10 @@ nKai	15000'></textarea>
                             <tr>
                                 <th>排名</th>
                                 <th>玩家</th>
-                                <th>藏身地堡</th>
-                                <th>水晶蜘蛛</th>
-                                <th>煉獄之門</th>
-                                <th>無底深淵</th>
+                                <th id="thHideoutCore">藏身地堡</th>
+                                <th id="thCrystalSpider">水晶蜘蛛</th>
+                                <th id="thHellGate">煉獄之門</th>
+                                <th id="thBottomlessAbyss">無底深淵</th>
                                 <th>總分</th>
                                 <th style="color: #ffd700;">抽獎券</th>
                             </tr>
@@ -1091,13 +1075,58 @@ nKai	15000'></textarea>
             }
         }
 
-        // 活動類型
-        const ACTIVITIES = {
-            hideoutCore: '藏身地堡核心',
-            crystalSpider: '水晶蜘蛛',
-            hellGate: '煉獄之門',
-            bottomlessAbyss: '無底深淵'
+        // 力量點分數欄位（固定 4 個 slot；顯示名稱與抽獎券規則由各賽季 activityConfig 決定）
+        const ACTIVITY_KEYS = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss'];
+
+        // 預設活動設定（舊賽季或未設定 activityConfig 時套用，維持原本行為）
+        const DEFAULT_ACTIVITY_CONFIG = {
+            labels: {
+                hideoutCore: '藏身地堡核心',
+                crystalSpider: '水晶蜘蛛',
+                hellGate: '煉獄之門',
+                bottomlessAbyss: '無底深淵'
+            },
+            ticketCategories: [
+                { label: '藏身地堡核心', slots: ['hideoutCore'], threshold: 600000, increment: 400000 },
+                { label: '水晶蜘蛛', slots: ['crystalSpider'], threshold: 30000, increment: 15000 },
+                { label: '煉獄+深淵', slots: ['hellGate', 'bottomlessAbyss'], threshold: 20000, increment: 15000 }
+            ]
         };
+
+        // 取得某賽季的活動設定（缺項以預設補齊）
+        function getActivityConfig(season) {
+            const cfg = season && season.activityConfig;
+            const labels = { ...DEFAULT_ACTIVITY_CONFIG.labels, ...((cfg && cfg.labels) || {}) };
+            const ticketCategories = (cfg && Array.isArray(cfg.ticketCategories) && cfg.ticketCategories.length)
+                ? cfg.ticketCategories
+                : DEFAULT_ACTIVITY_CONFIG.ticketCategories;
+            return { labels, ticketCategories };
+        }
+
+        // 以目前選取的賽季取得某活動欄位的顯示名稱
+        function activityLabel(activityKey) {
+            const season = getSeasonData(getCurrentSeason());
+            return getActivityConfig(season).labels[activityKey] || activityKey;
+        }
+
+        // 依賽季設定更新畫面上所有活動名稱（匯入/排行 tabs、總覽卡標籤、排行表頭）
+        function applyActivityLabels(config) {
+            const labels = config.labels;
+            document.querySelectorAll('.pp-tab').forEach(t => {
+                if (labels[t.dataset.activity]) t.textContent = labels[t.dataset.activity];
+            });
+            document.querySelectorAll('.pp-rank-tab').forEach(t => {
+                if (labels[t.dataset.rank]) t.textContent = labels[t.dataset.rank];
+            });
+            const totalLabelIds = { hideoutCore: 'ppLabelHideoutCore', crystalSpider: 'ppLabelCrystalSpider', hellGate: 'ppLabelHellGate', bottomlessAbyss: 'ppLabelBottomlessAbyss' };
+            const thIds = { hideoutCore: 'thHideoutCore', crystalSpider: 'thCrystalSpider', hellGate: 'thHellGate', bottomlessAbyss: 'thBottomlessAbyss' };
+            ACTIVITY_KEYS.forEach(k => {
+                const totalEl = document.getElementById(totalLabelIds[k]);
+                if (totalEl) totalEl.textContent = labels[k];
+                const thEl = document.getElementById(thIds[k]);
+                if (thEl) thEl.textContent = labels[k];
+            });
+        }
 
         let currentPage = 1;
         let pendingImportRecords = [];
@@ -2221,6 +2250,7 @@ nKai	15000'></textarea>
             document.getElementById('ppDataManageCard').style.display = hasSelection ? 'block' : 'none';
 
             if (hasSelection) {
+                applyActivityLabels(getActivityConfig(getSeasonData(select.value)));
                 renderPPStats();
                 renderPPRanking();
             }
@@ -2251,6 +2281,7 @@ nKai	15000'></textarea>
                 data.seasons.push({
                     id: result._id,
                     name: result.name,
+                    activityConfig: result.activityConfig || null,
                     createTime: new Date().toISOString(),
                     scores: result.scores || {
                         hideoutCore: [],
@@ -2375,7 +2406,7 @@ nKai	15000'></textarea>
 
             if (records.length > 0) {
                 const totalScore = records.reduce((sum, r) => sum + r.score, 0);
-                const activityName = ACTIVITIES[currentActivity];
+                const activityName = activityLabel(currentActivity);
 
                 preview.innerHTML = `
                     <p>活動：<strong>${activityName}</strong></p>
@@ -2442,7 +2473,7 @@ nKai	15000'></textarea>
                 // 重新從 API 同步
                 await syncSeasonsFromAPI();
 
-                const activityName = ACTIVITIES[currentActivity];
+                const activityName = activityLabel(currentActivity);
                 showAlert(document.getElementById('ppImportAlert'),
                     `「${activityName}」匯入完成：新增 ${newCount} 筆，更新 ${updateCount} 筆`, 'success');
 
@@ -2464,33 +2495,23 @@ nKai	15000'></textarea>
             pendingPPRecords = [];
         }
 
-        // 計算抽獎券數量
-        function calculateLotteryTickets(hideoutCore, crystalSpider, hellGate, bottomlessAbyss) {
-            let tickets = {
-                hideout: 0,
-                spider: 0,
-                combined: 0,
-                total: 0
-            };
-
-            // 藏身地堡核心：600,000 門檻 1 張，之後每 400,000 額外 1 張
-            if (hideoutCore >= 600000) {
-                tickets.hideout = 1 + Math.floor((hideoutCore - 600000) / 400000);
-            }
-
-            // 水晶蜘蛛：30,000 門檻 1 張，之後每 15,000 額外 1 張
-            if (crystalSpider >= 30000) {
-                tickets.spider = 1 + Math.floor((crystalSpider - 30000) / 15000);
-            }
-
-            // 煉獄之門 + 無底深淵（合併）：20,000 門檻 1 張，之後每 15,000 額外 1 張
-            const combinedScore = hellGate + bottomlessAbyss;
-            if (combinedScore >= 20000) {
-                tickets.combined = 1 + Math.floor((combinedScore - 20000) / 15000);
-            }
-
-            tickets.total = tickets.hideout + tickets.spider + tickets.combined;
-            return tickets;
+        // 計算抽獎券數量（依賽季 ticketCategories 規則；每個類別可合併多個分數欄位）
+        // playerScores: { hideoutCore, crystalSpider, hellGate, bottomlessAbyss }
+        // 回傳 { total, categories: [{ label, count }] }
+        function calculateLotteryTickets(playerScores, config) {
+            const cfg = config || DEFAULT_ACTIVITY_CONFIG;
+            const categories = cfg.ticketCategories.map(cat => {
+                const sum = (cat.slots || []).reduce((s, slot) => s + (playerScores[slot] || 0), 0);
+                let count = 0;
+                if (sum >= cat.threshold) {
+                    count = cat.increment > 0
+                        ? 1 + Math.floor((sum - cat.threshold) / cat.increment)
+                        : 1;
+                }
+                return { label: cat.label, count };
+            });
+            const total = categories.reduce((s, c) => s + c.count, 0);
+            return { total, categories };
         }
 
         function renderPPStats() {
@@ -2543,20 +2564,34 @@ nKai	15000'></textarea>
             document.getElementById('ppHellGateTotal').textContent = activityTotals.hellGate.toLocaleString();
             document.getElementById('ppBottomlessAbyssTotal').textContent = activityTotals.bottomlessAbyss.toLocaleString();
 
-            // 計算抽獎券統計
-            let totalTickets = { hideout: 0, spider: 0, combined: 0, total: 0 };
+            // 計算抽獎券統計（依賽季類別動態彙總）
+            const config = getActivityConfig(season);
+            const categoryTotals = config.ticketCategories.map(() => 0);
+            let grandTotalTickets = 0;
             players.forEach(p => {
-                const tickets = calculateLotteryTickets(p.hideoutCore, p.crystalSpider, p.hellGate, p.bottomlessAbyss);
-                totalTickets.hideout += tickets.hideout;
-                totalTickets.spider += tickets.spider;
-                totalTickets.combined += tickets.combined;
-                totalTickets.total += tickets.total;
+                const tickets = calculateLotteryTickets(p, config);
+                tickets.categories.forEach((c, i) => { categoryTotals[i] += c.count; });
+                grandTotalTickets += tickets.total;
             });
 
-            document.getElementById('totalLotteryTickets').textContent = totalTickets.total;
-            document.getElementById('lotteryFromHideout').textContent = totalTickets.hideout;
-            document.getElementById('lotteryFromSpider').textContent = totalTickets.spider;
-            document.getElementById('lotteryFromCombined').textContent = totalTickets.combined;
+            document.getElementById('totalLotteryTickets').textContent = grandTotalTickets;
+
+            // 動態渲染各類別抽獎券卡片
+            document.getElementById('lotteryBreakdown').innerHTML = config.ticketCategories.map((cat, i) => `
+                <div class="stat-item">
+                    <div class="value">${categoryTotals[i]}</div>
+                    <div class="label">${escapeHtml(cat.label)}</div>
+                </div>
+            `).join('');
+
+            // 動態渲染抽獎券規則說明
+            document.getElementById('lotteryRules').innerHTML = '<strong>抽獎券規則：</strong><br>' +
+                config.ticketCategories.map(cat => {
+                    const rule = cat.increment > 0
+                        ? `達 ${cat.threshold.toLocaleString()} 分得 1 張，之後每 ${cat.increment.toLocaleString()} 分額外 1 張`
+                        : `達 ${cat.threshold.toLocaleString()} 分得 1 張`;
+                    return `• ${escapeHtml(cat.label)}：${rule}`;
+                }).join('<br>');
 
             // 顯示抽獎券卡片
             document.getElementById('ppLotteryCard').style.display = 'block';
@@ -2595,10 +2630,11 @@ nKai	15000'></textarea>
             let players = Object.values(playerData);
 
             // 為每個玩家計算抽獎券
+            const config = getActivityConfig(season);
             players.forEach(p => {
-                const tickets = calculateLotteryTickets(p.hideoutCore, p.crystalSpider, p.hellGate, p.bottomlessAbyss);
+                const tickets = calculateLotteryTickets(p, config);
                 p.tickets = tickets.total;
-                p.ticketDetails = tickets;
+                p.ticketDetails = tickets.categories;
             });
 
             if (players.length === 0) {
@@ -2616,7 +2652,7 @@ nKai	15000'></textarea>
 
             noData.style.display = 'none';
             tbody.innerHTML = players.map((p, index) => {
-                const ticketBreakdown = `藏身地堡: ${p.ticketDetails.hideout}, 水晶蜘蛛: ${p.ticketDetails.spider}, 煉獄+深淵: ${p.ticketDetails.combined}`;
+                const ticketBreakdown = p.ticketDetails.map(c => `${c.label}: ${c.count}`).join(', ');
                 return `
                 <tr>
                     <td>${index + 1}</td>
@@ -2838,8 +2874,9 @@ nKai	15000'></textarea>
                 });
             });
 
+            const config = getActivityConfig(season);
             return Object.values(playerData).map(p => {
-                const tickets = calculateLotteryTickets(p.hideoutCore, p.crystalSpider, p.hellGate, p.bottomlessAbyss);
+                const tickets = calculateLotteryTickets(p, config);
                 const used = lotteryData.usedTickets[p.player.toLowerCase()] || 0;
                 return {
                     player: p.player,
@@ -3483,6 +3520,7 @@ nKai	15000'></textarea>
                     seasons: seasonArray.map(s => ({
                         id: s._id,
                         name: s.name,
+                        activityConfig: s.activityConfig || null,
                         scores: s.scores || {
                             hideoutCore: [],
                             crystalSpider: [],
