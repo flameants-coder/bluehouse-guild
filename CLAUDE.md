@@ -97,6 +97,7 @@ https://bluehouse-guild-api.onrender.com/api
 | GET | `/:id` | 取得單一賽季 | 公開 |
 | POST | `/` | 新增賽季 | 管理員 |
 | DELETE | `/:id` | 刪除賽季 | 管理員 |
+| PUT | `/:id/activity-config` | 更新賽季活動名稱與抽獎券規則 | 管理員 |
 | PUT | `/:id/scores/:activity` | 更新力量點分數 | 管理員 |
 | DELETE | `/:id/scores` | 清除力量點數據 | 管理員 |
 | PUT | `/:id/lottery/prizes` | 更新獎品列表 | 管理員 |
@@ -140,11 +141,20 @@ https://bluehouse-guild-api.onrender.com/api
 ```javascript
 {
   name: String,        // 賽季名稱
-  scores: {
-    hideoutCore: [],       // 藏身處核心
-    crystalSpider: [],     // 水晶蜘蛛
-    hellGate: [],          // 地獄之門
-    bottomlessAbyss: []    // 無底深淵
+  // 每賽季獨立的活動名稱與抽獎券規則；未設定則前端套用預設(舊賽季不受影響)
+  activityConfig: {
+    labels: {          // 4 個 slot 的顯示名稱(可每季不同)
+      hideoutCore, crystalSpider, hellGate, bottomlessAbyss
+    },
+    ticketCategories: [ // 抽獎券類別，可合併多個 slot
+      { label, slots: [slotKey...], threshold, increment }  // increment=0 表示只給1張
+    ]
+  },
+  scores: {            // 固定 4 個 slot 鍵，顯示名由 activityConfig.labels 決定
+    hideoutCore: [],       // 預設:藏身處核心 (季33:能量球)
+    crystalSpider: [],     // 預設:水晶蜘蛛   (季33:風)
+    hellGate: [],          // 預設:地獄之門   (季33:煉獄之門)
+    bottomlessAbyss: []    // 預設:無底深淵   (季33:看守者)
   },
   lottery: {
     prizes: [],            // 獎品列表
