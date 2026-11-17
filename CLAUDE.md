@@ -143,18 +143,20 @@ https://bluehouse-guild-api.onrender.com/api
   name: String,        // 賽季名稱
   // 每賽季獨立的活動名稱與抽獎券規則；未設定則前端套用預設(舊賽季不受影響)
   activityConfig: {
-    labels: {          // 4 個 slot 的顯示名稱(可每季不同)
-      hideoutCore, crystalSpider, hellGate, bottomlessAbyss
+    labels: {          // 6 個 slot 的顯示名稱(可每季不同)
+      hideoutCore, crystalSpider, hellGate, bottomlessAbyss, corruptedDungeon, powerCrystal
     },
     ticketCategories: [ // 抽獎券類別，可合併多個 slot
       { label, slots: [slotKey...], threshold, increment }  // increment=0 表示只給1張
     ]
   },
-  scores: {            // 固定 4 個 slot 鍵，顯示名由 activityConfig.labels 決定
+  scores: {            // 固定 6 個 slot 鍵，顯示名由 activityConfig.labels 決定
     hideoutCore: [],       // 預設:藏身處核心 (季33:能量球)
     crystalSpider: [],     // 預設:水晶蜘蛛   (季33:風)
     hellGate: [],          // 預設:地獄之門   (季33:煉獄之門)
-    bottomlessAbyss: []    // 預設:無底深淵   (季33:看守者)
+    bottomlessAbyss: [],   // 預設:無底深淵   (季33:看守者)
+    corruptedDungeon: [],  // 預設:腐化地下城 (季34 新增)
+    powerCrystal: []       // 預設:領地力量水晶 (季34 新增)
   },
   lottery: {
     prizes: [],            // 獎品列表
