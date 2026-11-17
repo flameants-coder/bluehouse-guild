@@ -36,7 +36,9 @@ router.post('/', adminOnly, async (req, res) => {
                 hideoutCore: [],
                 crystalSpider: [],
                 hellGate: [],
-                bottomlessAbyss: []
+                bottomlessAbyss: [],
+                corruptedDungeon: [],
+                powerCrystal: []
             },
             lottery: {
                 prizes: [],
@@ -87,7 +89,7 @@ router.put('/:id/scores/:activity', adminOnly, async (req, res) => {
         const { id, activity } = req.params;
         const { scores } = req.body;
 
-        const validActivities = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss'];
+        const validActivities = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss', 'corruptedDungeon', 'powerCrystal'];
         if (!validActivities.includes(activity)) {
             return res.status(400).json({ message: '無效的活動類型' });
         }
@@ -118,7 +120,9 @@ router.delete('/:id/scores', adminOnly, async (req, res) => {
             hideoutCore: [],
             crystalSpider: [],
             hellGate: [],
-            bottomlessAbyss: []
+            bottomlessAbyss: [],
+            corruptedDungeon: [],
+            powerCrystal: []
         };
         await season.save();
 

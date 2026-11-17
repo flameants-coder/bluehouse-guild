@@ -335,6 +335,8 @@
                     <button class="tab pp-tab" data-activity="crystalSpider">水晶蜘蛛</button>
                     <button class="tab pp-tab" data-activity="hellGate">煉獄之門</button>
                     <button class="tab pp-tab" data-activity="bottomlessAbyss">無底深淵</button>
+                    <button class="tab pp-tab" data-activity="corruptedDungeon">腐化地下城</button>
+                    <button class="tab pp-tab" data-activity="powerCrystal">領地力量水晶</button>
                 </div>
                 <div class="form-group">
                     <label>貼上分數資料（格式：玩家名 Tab 分數，每行一筆）</label>
@@ -388,6 +390,14 @@ nKai	15000'></textarea>
                         <div class="value" id="ppBottomlessAbyssTotal">0</div>
                         <div class="label" id="ppLabelBottomlessAbyss">無底深淵</div>
                     </div>
+                    <div class="stat-item">
+                        <div class="value" id="ppCorruptedDungeonTotal">0</div>
+                        <div class="label" id="ppLabelCorruptedDungeon">腐化地下城</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="ppPowerCrystalTotal">0</div>
+                        <div class="label" id="ppLabelPowerCrystal">領地力量水晶</div>
+                    </div>
                 </div>
             </div>
 
@@ -414,6 +424,8 @@ nKai	15000'></textarea>
                     <button class="tab pp-rank-tab" data-rank="crystalSpider">水晶蜘蛛</button>
                     <button class="tab pp-rank-tab" data-rank="hellGate">煉獄之門</button>
                     <button class="tab pp-rank-tab" data-rank="bottomlessAbyss">無底深淵</button>
+                    <button class="tab pp-rank-tab" data-rank="corruptedDungeon">腐化地下城</button>
+                    <button class="tab pp-rank-tab" data-rank="powerCrystal">領地力量水晶</button>
                 </div>
                 <div id="ppRankingContainer" style="overflow-x: auto;">
                     <table>
@@ -425,6 +437,8 @@ nKai	15000'></textarea>
                                 <th id="thCrystalSpider">水晶蜘蛛</th>
                                 <th id="thHellGate">煉獄之門</th>
                                 <th id="thBottomlessAbyss">無底深淵</th>
+                                <th id="thCorruptedDungeon">腐化地下城</th>
+                                <th id="thPowerCrystal">領地力量水晶</th>
                                 <th>總分</th>
                                 <th style="color: #ffd700;">抽獎券</th>
                             </tr>
@@ -1076,7 +1090,7 @@ nKai	15000'></textarea>
         }
 
         // 力量點分數欄位（固定 4 個 slot；顯示名稱與抽獎券規則由各賽季 activityConfig 決定）
-        const ACTIVITY_KEYS = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss'];
+        const ACTIVITY_KEYS = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss', 'corruptedDungeon', 'powerCrystal'];
 
         // 預設活動設定（舊賽季或未設定 activityConfig 時套用，維持原本行為）
         const DEFAULT_ACTIVITY_CONFIG = {
@@ -1084,7 +1098,9 @@ nKai	15000'></textarea>
                 hideoutCore: '藏身地堡核心',
                 crystalSpider: '水晶蜘蛛',
                 hellGate: '煉獄之門',
-                bottomlessAbyss: '無底深淵'
+                bottomlessAbyss: '無底深淵',
+                corruptedDungeon: '腐化地下城',
+                powerCrystal: '領地力量水晶'
             },
             ticketCategories: [
                 { label: '藏身地堡核心', slots: ['hideoutCore'], threshold: 600000, increment: 400000 },
@@ -1118,8 +1134,8 @@ nKai	15000'></textarea>
             document.querySelectorAll('.pp-rank-tab').forEach(t => {
                 if (labels[t.dataset.rank]) t.textContent = labels[t.dataset.rank];
             });
-            const totalLabelIds = { hideoutCore: 'ppLabelHideoutCore', crystalSpider: 'ppLabelCrystalSpider', hellGate: 'ppLabelHellGate', bottomlessAbyss: 'ppLabelBottomlessAbyss' };
-            const thIds = { hideoutCore: 'thHideoutCore', crystalSpider: 'thCrystalSpider', hellGate: 'thHellGate', bottomlessAbyss: 'thBottomlessAbyss' };
+            const totalLabelIds = { hideoutCore: 'ppLabelHideoutCore', crystalSpider: 'ppLabelCrystalSpider', hellGate: 'ppLabelHellGate', bottomlessAbyss: 'ppLabelBottomlessAbyss', corruptedDungeon: 'ppLabelCorruptedDungeon', powerCrystal: 'ppLabelPowerCrystal' };
+            const thIds = { hideoutCore: 'thHideoutCore', crystalSpider: 'thCrystalSpider', hellGate: 'thHellGate', bottomlessAbyss: 'thBottomlessAbyss', corruptedDungeon: 'thCorruptedDungeon', powerCrystal: 'thPowerCrystal' };
             ACTIVITY_KEYS.forEach(k => {
                 const totalEl = document.getElementById(totalLabelIds[k]);
                 if (totalEl) totalEl.textContent = labels[k];
@@ -1842,7 +1858,7 @@ nKai	15000'></textarea>
                         }
 
                         // 上傳各活動分數
-                        for (const activity of ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss']) {
+                        for (const activity of ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss', 'corruptedDungeon', 'powerCrystal']) {
                             if (season.scores?.[activity]?.length > 0) {
                                 await syncPPScoresToAPI(seasonId, activity, season.scores[activity]);
                             }
@@ -2287,7 +2303,9 @@ nKai	15000'></textarea>
                         hideoutCore: [],
                         crystalSpider: [],
                         hellGate: [],
-                        bottomlessAbyss: []
+                        bottomlessAbyss: [],
+                        corruptedDungeon: [],
+                        powerCrystal: []
                     }
                 });
 
@@ -2535,6 +2553,8 @@ nKai	15000'></textarea>
                             crystalSpider: 0,
                             hellGate: 0,
                             bottomlessAbyss: 0,
+                            corruptedDungeon: 0,
+                            powerCrystal: 0,
                             total: 0
                         };
                     }
@@ -2556,13 +2576,17 @@ nKai	15000'></textarea>
                 hideoutCore: season.scores.hideoutCore.reduce((sum, r) => sum + r.score, 0),
                 crystalSpider: season.scores.crystalSpider.reduce((sum, r) => sum + r.score, 0),
                 hellGate: season.scores.hellGate.reduce((sum, r) => sum + r.score, 0),
-                bottomlessAbyss: season.scores.bottomlessAbyss.reduce((sum, r) => sum + r.score, 0)
+                bottomlessAbyss: season.scores.bottomlessAbyss.reduce((sum, r) => sum + r.score, 0),
+                corruptedDungeon: (season.scores.corruptedDungeon || []).reduce((sum, r) => sum + r.score, 0),
+                powerCrystal: (season.scores.powerCrystal || []).reduce((sum, r) => sum + r.score, 0)
             };
 
             document.getElementById('ppHideoutCoreTotal').textContent = activityTotals.hideoutCore.toLocaleString();
             document.getElementById('ppCrystalSpiderTotal').textContent = activityTotals.crystalSpider.toLocaleString();
             document.getElementById('ppHellGateTotal').textContent = activityTotals.hellGate.toLocaleString();
             document.getElementById('ppBottomlessAbyssTotal').textContent = activityTotals.bottomlessAbyss.toLocaleString();
+            document.getElementById('ppCorruptedDungeonTotal').textContent = activityTotals.corruptedDungeon.toLocaleString();
+            document.getElementById('ppPowerCrystalTotal').textContent = activityTotals.powerCrystal.toLocaleString();
 
             // 計算抽獎券統計（依賽季類別動態彙總）
             const config = getActivityConfig(season);
@@ -2619,6 +2643,8 @@ nKai	15000'></textarea>
                             crystalSpider: 0,
                             hellGate: 0,
                             bottomlessAbyss: 0,
+                            corruptedDungeon: 0,
+                            powerCrystal: 0,
                             total: 0
                         };
                     }
@@ -2661,6 +2687,8 @@ nKai	15000'></textarea>
                     <td>${p.crystalSpider.toLocaleString()}</td>
                     <td>${p.hellGate.toLocaleString()}</td>
                     <td>${p.bottomlessAbyss.toLocaleString()}</td>
+                    <td>${p.corruptedDungeon.toLocaleString()}</td>
+                    <td>${p.powerCrystal.toLocaleString()}</td>
                     <td><strong>${p.total.toLocaleString()}</strong></td>
                     <td style="color: #ffd700;" title="${ticketBreakdown}"><strong>${p.tickets}</strong></td>
                 </tr>
@@ -2714,8 +2742,8 @@ nKai	15000'></textarea>
                 return;
             }
 
-            const activities = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss'];
-            const activityNames = { hideoutCore: '藏身處核心', crystalSpider: '水晶蜘蛛', hellGate: '地獄之門', bottomlessAbyss: '無底深淵' };
+            const activities = ['hideoutCore', 'crystalSpider', 'hellGate', 'bottomlessAbyss', 'corruptedDungeon', 'powerCrystal'];
+            const activityNames = { hideoutCore: '藏身處核心', crystalSpider: '水晶蜘蛛', hellGate: '地獄之門', bottomlessAbyss: '無底深淵', corruptedDungeon: '腐化地下城', powerCrystal: '領地力量水晶' };
             let totalCount = 0;
             activities.forEach(act => {
                 totalCount += (season.scores[act] || []).length;
@@ -2787,7 +2815,9 @@ nKai	15000'></textarea>
                         hideoutCore: [],
                         crystalSpider: [],
                         hellGate: [],
-                        bottomlessAbyss: []
+                        bottomlessAbyss: [],
+                        corruptedDungeon: [],
+                        powerCrystal: []
                     };
                     savePPData(data);
                 }
@@ -2867,7 +2897,9 @@ nKai	15000'></textarea>
                             hideoutCore: 0,
                             crystalSpider: 0,
                             hellGate: 0,
-                            bottomlessAbyss: 0
+                            bottomlessAbyss: 0,
+                            corruptedDungeon: 0,
+                            powerCrystal: 0
                         };
                     }
                     playerData[key][activity] = r.score;
@@ -3525,7 +3557,9 @@ nKai	15000'></textarea>
                             hideoutCore: [],
                             crystalSpider: [],
                             hellGate: [],
-                            bottomlessAbyss: []
+                            bottomlessAbyss: [],
+                            corruptedDungeon: [],
+                            powerCrystal: []
                         }
                     })),
                     currentSeason: seasonArray.length > 0 ? seasonArray[0]._id : null

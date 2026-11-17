@@ -29,7 +29,9 @@ const activityConfigSchema = new mongoose.Schema({
         hideoutCore: { type: String, maxlength: 30 },
         crystalSpider: { type: String, maxlength: 30 },
         hellGate: { type: String, maxlength: 30 },
-        bottomlessAbyss: { type: String, maxlength: 30 }
+        bottomlessAbyss: { type: String, maxlength: 30 },
+        corruptedDungeon: { type: String, maxlength: 30 },
+        powerCrystal: { type: String, maxlength: 30 }
     },
     ticketCategories: { type: [ticketCategorySchema], default: undefined }
 }, { _id: false });
@@ -75,7 +77,9 @@ const seasonSchema = new mongoose.Schema({
         hideoutCore: [scoreEntrySchema],
         crystalSpider: [scoreEntrySchema],
         hellGate: [scoreEntrySchema],
-        bottomlessAbyss: [scoreEntrySchema]
+        bottomlessAbyss: [scoreEntrySchema],
+        corruptedDungeon: [scoreEntrySchema],
+        powerCrystal: [scoreEntrySchema]
     },
     // 抽獎數據
     lottery: {
